@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Control Compliance Hub (V1)</title>
+
+  <!-- Supabase JS (UMD) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root{
+      --bg: #f3f4f6;
+      --card:#ffffff;
+      --ink:#111827;
+      --muted:#6b7280;
+      --header:#111827;
+      --headerInk:#f9fafb;
+      --line:#e5e7eb;
+      --good:#10b981;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --shadow: 0 1px 2px rgba(0,0,0,.05);
+      --radius: 14px;
+    }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    header{
+      background: var(--header);
+      color: var(--headerInk);
+      padding: 14px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    header h1{
+      font-size: 16px;
+      margin:0;
+      letter-spacing:.2px;
+    }
+    header .meta{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      font-size: 12px;
+      opacity: .92;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+      text-align:right;
+    }
+    header .pill{
+      border: 1px solid rgba(255,255,255,.18);
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+    }
+
+    .wrap{
+      max-width: 1280px;
+      margin: 18px auto;
+      padding: 0 14px 30px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 14px;
+    }
+
+    .card{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .card h2{
+      margin:0 0 10px;
+      font-size: 14px;
+      letter-spacing: .2px;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items:center;
+    }
+
+    .controls{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom: 12px;
+    }
+
+    label{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input, select, textarea, button{ font: inherit; }
+
+    input[type="text"], input[type="email"], input[type="password"], select, textarea{
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background:#fff;
+      font-size: 13px;
+      outline:none;
+      min-width: 180px;
+    }
+    textarea{
+      min-width: 260px;
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    button{
+      border: 1px solid var(--line);
+      background:#fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 13px;
+      cursor:pointer;
+    }
+    button.primary{
+      background: #111827;
+      color:#f9fafb;
+      border-color:#111827;
+    }
+    button.danger{
+      background: #fee2e2;
+      border-color:#fecaca;
+      color:#991b1b;
+    }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom: 10px;
+    }
+    .tab{
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background:#fff;
+      font-size: 13px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .tab.active{
+      background:#111827;
+      color:#f9fafb;
+      border-color:#111827;
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    th, td{
+      border-top: 1px solid var(--line);
+      padding: 8px 6px;
+      vertical-align: top;
+      text-align:left;
+    }
+    th{
+      font-size: 12px;
+      color: var(--muted);
+      background:#fafafa;
+      border-top: 1px solid var(--line);
+    }
+    .small{ font-size: 12px; color: var(--muted); }
+    .muted{ color: var(--muted); }
+
+    .dot{
+      width: 10px; height:10px; border-radius:50%;
+      display:inline-block; margin-right: 6px; vertical-align: middle;
+      background: var(--muted);
+    }
+    .dot.good{ background: var(--good); }
+    .dot.warn{ background: var(--warn); }
+    .dot.bad{ background: var(--bad); }
+
+    .bar{
+      height: 10px;
+      background:#e5e7eb;
+      border-radius: 999px;
+      overflow:hidden;
+      border: 1px solid var(--line);
+    }
+    .bar > div{
+      height:100%;
+      width:0%;
+      background:#111827;
+    }
+    .kpi{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .rightCol .card{ margin-bottom: 14px; }
+    .hide{ display:none !important; }
+
+    .toast{
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      background: #111827;
+      color:#f9fafb;
+      padding: 10px 12px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.18);
+      font-size: 13px;
+      max-width: 420px;
+      display:none;
+      z-index:9999;
+    }
+
+    .split{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 1100px){
+      .grid{ grid-template-columns: 1fr; }
+      .split{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Control Compliance Hub (V1)</h1>
+  <div class="meta">
+    <span class="pill" id="envPill">Mini Project Hub + Supabase</span>
+    <span class="pill" id="userPill">Not set</span>
+    <button id="switchUserBtn" class="pill">Switch user</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- DEV IDENTITY (bypasses Supabase Auth for now) -->
+  <div class="card" id="identityCard">
+    <h2>Enter dashboard (Auth bypass)</h2>
+    <div class="row">
+      <div>
+        <label>Display name</label><br/>
+        <input id="devName" type="text" placeholder="e.g. Brad / SNDM / RCM A"/>
+      </div>
+      <div>
+        <label>Role</label><br/>
+        <select id="devRole">
+          <option value="sndm">sndm</option>
+          <option value="rcm">rcm</option>
+          <option value="staff">staff</option>
+        </select>
+      </div>
+      <div>
+        <label>User UUID (optional)</label><br/>
+        <input id="devUuid" type="text" placeholder="leave blank to auto-generate"/>
+      </div>
+      <div style="margin-top:18px;">
+        <button class="primary" id="enterBtn">Enter</button>
+      </div>
+    </div>
+    <p class="small" style="margin:10px 0 0;">
+      This V1 intentionally bypasses Supabase Auth so you can deploy and iterate without fighting logins. It writes to <code>compliance.*</code> tables using the anon key (with RLS off initially).
+    </p>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hide">
+    <div class="controls">
+      <div class="row">
+        <div>
+          <label>Year</label><br/>
+          <select id="yearSel"></select>
+        </div>
+        <div>
+          <label>Quarter</label><br/>
+          <select id="qSel">
+            <option value="1">Q1</option>
+            <option value="2">Q2</option>
+            <option value="3">Q3</option>
+            <option value="4">Q4</option>
+          </select>
+        </div>
+        <div>
+          <label>Team (RCM)</label><br/>
+          <select id="teamSel"></select>
+        </div>
+        <div>
+          <label>Staff filter</label><br/>
+          <select id="staffSel"></select>
+        </div>
+        <div>
+          <label>Search</label><br/>
+          <input id="searchBox" type="text" placeholder="task / tag / brief…"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="pill" id="periodPill">Period: -</div>
+        <div class="pill" id="rolePill">Role: -</div>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="compliance">Compliance</div>
+      <div class="tab" data-tab="briefs">Briefing Hub</div>
+      <div class="tab" data-tab="projects">RCM Projects</div>
+      <div class="tab" data-tab="teams" id="teamsTab">Team Builder (SNDM)</div>
+      <div class="tab" data-tab="admin" id="adminTab">Task Admin (SNDM)</div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT -->
+      <div>
+
+        <!-- COMPLIANCE -->
+        <div class="card" id="tab-compliance">
+          <div class="kpi">
+            <h2>Compliance Tasks</h2>
+            <div style="min-width: 380px;">
+              <div class="bar" title="Actual progress (completed / total)">
+                <div id="actualBar"></div>
+              </div>
+              <div class="small" id="progressText" style="margin-top:6px;">-</div>
+              <div class="small" id="expectedText">-</div>
+            </div>
+          </div>
+
+          <div style="margin-top:10px; overflow:auto;">
+            <table>
+              <thead>
+              <tr>
+                <th style="width:30px;">Done</th>
+                <th>Task</th>
+                <th style="width:150px;">Team</th>
+                <th style="width:180px;">Tagged Staff</th>
+                <th style="width:120px;">Tags</th>
+                <th style="width:120px;">Due</th>
+                <th style="width:90px;">Status</th>
+                <th style="width:160px;">Linked Brief</th>
+              </tr>
+              </thead>
+              <tbody id="tasksTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- BRIEFS -->
+        <div class="card hide" id="tab-briefs">
+          <div class="controls" style="margin-bottom:10px;">
+            <h2 style="margin:0;">Briefing Hub</h2>
+            <div class="row" id="briefUploadRow">
+              <input id="briefFile" type="file"/>
+              <input id="briefTitle" type="text" placeholder="Brief title"/>
+              <input id="briefTags" type="text" placeholder="Tags (comma)"/>
+              <button class="primary" id="uploadBriefBtn">Upload brief</button>
+            </div>
+          </div>
+
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+              <tr>
+                <th>Brief</th>
+                <th style="width:360px;">Description</th>
+                <th style="width:120px;">Tags</th>
+                <th style="width:120px;">Uploaded</th>
+                <th style="width:200px;">Actions</th>
+                <th style="width:140px;">Read & Understood</th>
+              </tr>
+              </thead>
+              <tbody id="briefsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PROJECTS -->
+        <div class="card hide" id="tab-projects">
+          <div class="controls" style="margin-bottom:10px;">
+            <h2 style="margin:0;">RCM Personal Projects</h2>
+            <div class="row">
+              <input id="projTitle" type="text" placeholder="Project title"/>
+              <select id="projStatus">
+                <option value="planned">Planned</option>
+                <option value="active" selected>Active</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+              </select>
+              <button class="primary" id="addProjBtn">Add</button>
+            </div>
+          </div>
+
+          <div id="projectsList" class="split"></div>
+          <p class="small" style="margin-top:10px;">
+            Projects are user-owned. In V2 we can optionally expose rollups to SNDM.
+          </p>
+        </div>
+
+        <!-- TEAM BUILDER -->
+        <div class="card hide" id="tab-teams">
+          <h2>Team Builder (SNDM)</h2>
+          <div class="row">
+            <input id="teamName" type="text" placeholder="Team name (e.g. WH RCM A)"/>
+            <select id="teamRcmUser"></select>
+            <button class="primary" id="createTeamBtn">Create team</button>
+          </div>
+
+          <div style="margin-top:10px; overflow:auto;">
+            <table>
+              <thead>
+              <tr>
+                <th>Team</th>
+                <th style="width:160px;">RCM</th>
+                <th>Members</th>
+                <th style="width:260px;">Add member</th>
+                <th style="width:120px;">Actions</th>
+              </tr>
+              </thead>
+              <tbody id="teamsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ADMIN TASKS -->
+        <div class="card hide" id="tab-admin">
+          <h2>Task Admin (SNDM)</h2>
+          <p class="small" style="margin-top:-6px;">
+            Core compliance tasks live here. RCM can mark completion, not edit definitions.
+          </p>
+
+          <div class="row">
+            <input id="taskTitle" type="text" placeholder="Task title"/>
+            <input id="taskTags" type="text" placeholder="Tags (comma)"/>
+            <input id="taskDue" type="text" placeholder="Due date (YYYY-MM-DD)"/>
+            <button class="primary" id="createTaskBtn">Create task</button>
+          </div>
+
+          <div class="small" style="margin-top:8px;">
+            Task is created against selected Team + selected Year/Quarter. Tag staff from the Compliance table.
+          </div>
+
+          <div style="margin-top:10px; overflow:auto;">
+            <table>
+              <thead>
+              <tr>
+                <th>Task</th>
+                <th style="width:120px;">Tags</th>
+                <th style="width:110px;">Due</th>
+                <th style="width:160px;">Team</th>
+                <th style="width:110px;">Period</th>
+                <th style="width:180px;">Actions</th>
+              </tr>
+              </thead>
+              <tbody id="adminTasksTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT -->
+      <div class="rightCol">
+
+        <div class="card">
+          <h2>Operational Snapshot</h2>
+          <div class="small" id="snapshotText">Loading…</div>
+          <div style="margin-top:10px;">
+            <div class="small muted">V1: ship something, then polish it. It’s not glamorous, but neither is Excel.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>What you should be doing</h2>
+          <div class="small" id="guidanceBox">-</div>
+        </div>
+
+        <div class="card">
+          <h2>Quick Actions</h2>
+          <div class="row">
+            <button id="refreshBtn">Refresh</button>
+            <button id="jumpComplianceBtn">Compliance</button>
+            <button id="jumpBriefsBtn">Briefs</button>
+          </div>
+          <p class="small" style="margin-top:10px;">
+            V1 rule: data is truth, and humans are an uncontrolled variable.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/**
+ * ============================================
+ * MINI PROJECT HUB + SUPABASE (V1 BOOTSTRAP)
+ * ============================================
+ * - Uses a dedicated schema: compliance
+ * - Does NOT use Supabase Auth (for now)
+ * - Stores a "dev identity" in localStorage and in compliance.profiles
+ *
+ * When you later turn on Supabase Auth:
+ * - map profiles.user_id = auth.users.id
+ * - replace the identityCard with sign-in
+ */
+const APP_SCHEMA = "compliance";
+const BRIEFS_BUCKET = "compliance_briefs"; // create this bucket in Supabase Storage
+
+// EDIT THESE:
+const SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
+
+// Client
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Helper to reference schema-qualified tables
+const T = (name) => `${APP_SCHEMA}.${name}`;
+
+// UI refs
+const els = {
+  identityCard: document.getElementById("identityCard"),
+  app: document.getElementById("app"),
+  envPill: document.getElementById("envPill"),
+  userPill: document.getElementById("userPill"),
+  switchUserBtn: document.getElementById("switchUserBtn"),
+
+  devName: document.getElementById("devName"),
+  devRole: document.getElementById("devRole"),
+  devUuid: document.getElementById("devUuid"),
+  enterBtn: document.getElementById("enterBtn"),
+
+  yearSel: document.getElementById("yearSel"),
+  qSel: document.getElementById("qSel"),
+  teamSel: document.getElementById("teamSel"),
+  staffSel: document.getElementById("staffSel"),
+  searchBox: document.getElementById("searchBox"),
+  periodPill: document.getElementById("periodPill"),
+  rolePill: document.getElementById("rolePill"),
+
+  tabs: document.getElementById("tabs"),
+  teamsTab: document.getElementById("teamsTab"),
+  adminTab: document.getElementById("adminTab"),
+
+  tasksTbody: document.getElementById("tasksTbody"),
+  briefsTbody: document.getElementById("briefsTbody"),
+  projectsList: document.getElementById("projectsList"),
+  teamsTbody: document.getElementById("teamsTbody"),
+  adminTasksTbody: document.getElementById("adminTasksTbody"),
+
+  actualBar: document.getElementById("actualBar"),
+  progressText: document.getElementById("progressText"),
+  expectedText: document.getElementById("expectedText"),
+
+  snapshotText: document.getElementById("snapshotText"),
+  guidanceBox: document.getElementById("guidanceBox"),
+
+  refreshBtn: document.getElementById("refreshBtn"),
+  jumpComplianceBtn: document.getElementById("jumpComplianceBtn"),
+  jumpBriefsBtn: document.getElementById("jumpBriefsBtn"),
+
+  briefUploadRow: document.getElementById("briefUploadRow"),
+  briefFile: document.getElementById("briefFile"),
+  briefTitle: document.getElementById("briefTitle"),
+  briefTags: document.getElementById("briefTags"),
+  uploadBriefBtn: document.getElementById("uploadBriefBtn"),
+
+  taskTitle: document.getElementById("taskTitle"),
+  taskTags: document.getElementById("taskTags"),
+  taskDue: document.getElementById("taskDue"),
+  createTaskBtn: document.getElementById("createTaskBtn"),
+
+  teamName: document.getElementById("teamName"),
+  teamRcmUser: document.getElementById("teamRcmUser"),
+  createTeamBtn: document.getElementById("createTeamBtn"),
+
+  projTitle: document.getElementById("projTitle"),
+  projStatus: document.getElementById("projStatus"),
+  addProjBtn: document.getElementById("addProjBtn"),
+
+  toast: document.getElementById("toast"),
+};
+
+// State
+let sessionUser = null; // { id, email? }
+let profile = null;     // { user_id, display_name, role }
+
+let teams = [];
+let members = [];
+let tasks = [];
+let assignments = [];
+let completions = [];
+let briefs = [];
+let briefReads = [];
+let briefLinks = [];
+let projects = [];
+let projectNotes = [];
+
+// Toast
+function toast(msg){
+  els.toast.textContent = msg;
+  els.toast.style.display = "block";
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=> els.toast.style.display="none", 2600);
+}
+
+function pad(n){ return String(n).padStart(2,"0"); }
+
+function getQuarterWindow(year, q){
+  const qStartMonth = (q-1)*3;
+  const start = new Date(Date.UTC(year, qStartMonth, 1, 0,0,0));
+  const end = new Date(Date.UTC(year, qStartMonth+3, 1, 0,0,0)); // exclusive
+  return { start, end };
+}
+
+function fmtDate(d){
+  if(!d) return "";
+  const x = new Date(d);
+  return `${x.getUTCFullYear()}-${pad(x.getUTCMonth()+1)}-${pad(x.getUTCDate())}`;
+}
+
+function matchSearch(s, q){
+  if(!q) return true;
+  return (s||"").toLowerCase().includes(q.toLowerCase());
+}
+
+function roleIs(r){ return (profile?.role || "") === r; }
+function roleIn(arr){ return arr.includes(profile?.role || ""); }
+
+function setTab(tab){
+  document.querySelectorAll(".tab").forEach(t=> t.classList.toggle("active", t.dataset.tab===tab));
+  ["compliance","briefs","projects","teams","admin"].forEach(k=>{
+    const el = document.getElementById("tab-"+k);
+    if(el) el.classList.toggle("hide", k!==tab);
+  });
+}
+
+function enforceRoleUI(){
+  els.rolePill.textContent = `Role: ${profile?.role || "-"}`;
+  els.teamsTab.style.display = roleIs("sndm") ? "" : "none";
+  els.adminTab.style.display = roleIs("sndm") ? "" : "none";
+  els.briefUploadRow.style.display = roleIs("sndm") ? "flex" : "none";
+
+  document.querySelector('[data-tab="projects"]').style.display = roleIn(["rcm","sndm"]) ? "" : "none";
+  document.querySelector('[data-tab="compliance"]').style.display = roleIn(["rcm","sndm","staff"]) ? "" : "none";
+  document.querySelector('[data-tab="briefs"]').style.display = roleIn(["rcm","sndm","staff"]) ? "" : "none";
+}
+
+function initYearQuarter(){
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  els.yearSel.innerHTML = "";
+  for(let yy=y-1; yy<=y+1; yy++){
+    const opt = document.createElement("option");
+    opt.value = yy;
+    opt.textContent = yy;
+    if(yy===y) opt.selected = true;
+    els.yearSel.appendChild(opt);
+  }
+  const m = now.getUTCMonth();
+  const q = Math.floor(m/3)+1;
+  els.qSel.value = String(q);
+}
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
+
+// Identity persistence (localStorage)
+const LS_KEY = "compliancehub.identity.v1";
+function loadIdentity(){
+  try{
+    return JSON.parse(localStorage.getItem(LS_KEY) || "null");
+  } catch { return null; }
+}
+function saveIdentity(id){
+  localStorage.setItem(LS_KEY, JSON.stringify(id));
+}
+function clearIdentity(){
+  localStorage.removeItem(LS_KEY);
+}
+
+async function upsertProfile(){
+  // Make sure the profile exists in compliance.profiles
+  const { error } = await supabase
+    .from(T("profiles"))
+    .upsert({
+      user_id: profile.user_id,
+      display_name: profile.display_name,
+      role: profile.role
+    }, { onConflict: "user_id" });
+
+  if(error){
+    console.error(error);
+    toast("Profile upsert failed (check schema/table + RLS off).");
+  }
+}
+
+async function enterWithIdentity(){
+  const displayName = (els.devName.value || "").trim();
+  const role = els.devRole.value;
+  let uuid = (els.devUuid.value || "").trim();
+
+  if(!displayName) return toast("Display name required.");
+  if(uuid && !isUuid(uuid)) return toast("User UUID doesn't look like a UUID.");
+  if(!uuid) uuid = crypto.randomUUID();
+
+  sessionUser = { id: uuid };
+  profile = { user_id: uuid, display_name: displayName, role };
+
+  saveIdentity(profile);
+
+  await upsertProfile();
+
+  els.identityCard.classList.add("hide");
+  els.app.classList.remove("hide");
+  els.userPill.textContent = `${profile.display_name} (${profile.role})`;
+  enforceRoleUI();
+  initYearQuarter();
+  await refresh();
+  setTab("compliance");
+}
+
+function showIdentityCard(){
+  els.app.classList.add("hide");
+  els.identityCard.classList.remove("hide");
+  els.userPill.textContent = "Not set";
+  els.rolePill.textContent = "Role: -";
+}
+
+function isUuid(s){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+}
+
+async function loadCore(){
+  const year = Number(els.yearSel.value);
+  const quarter = Number(els.qSel.value);
+
+  // Teams
+  {
+    const { data, error } = await supabase.from(T("teams")).select("*").order("name", {ascending:true});
+    if(error) console.error(error);
+    teams = data || [];
+  }
+
+  // Members
+  {
+    const { data, error } = await supabase.from(T("team_members")).select("*");
+    if(error) console.error(error);
+    members = data || [];
+  }
+
+  // Tasks for period
+  {
+    const { data, error } = await supabase
+      .from(T("compliance_tasks"))
+      .select("*")
+      .eq("year", year)
+      .eq("quarter", quarter)
+      .order("due_date", {ascending:true});
+    if(error) console.error(error);
+    tasks = data || [];
+  }
+
+  // Assignments
+  {
+    const { data, error } = await supabase.from(T("task_assignments")).select("*");
+    if(error) console.error(error);
+    assignments = data || [];
+  }
+
+  // Completions
+  {
+    const { data, error } = await supabase.from(T("task_completions")).select("*");
+    if(error) console.error(error);
+    completions = data || [];
+  }
+
+  // Briefs
+  {
+    const { data, error } = await supabase.from(T("briefs")).select("*").order("created_at",{ascending:false});
+    if(error) console.error(error);
+    briefs = data || [];
+  }
+
+  // Brief reads
+  {
+    const { data, error } = await supabase.from(T("brief_reads")).select("*");
+    if(error) console.error(error);
+    briefReads = data || [];
+  }
+
+  // Brief-task links
+  {
+    const { data, error } = await supabase.from(T("brief_task_links")).select("*");
+    if(error) console.error(error);
+    briefLinks = data || [];
+  }
+
+  // Projects + notes
+  if(roleIn(["rcm","sndm"])){
+    const { data, error } = await supabase
+      .from(T("rcm_projects"))
+      .select("*")
+      .eq("owner_user_id", sessionUser.id)
+      .order("created_at",{ascending:false});
+    if(error) console.error(error);
+    projects = data || [];
+
+    const { data: notes, error: nerr } = await supabase
+      .from(T("rcm_project_notes"))
+      .select("*")
+      .eq("owner_user_id", sessionUser.id)
+      .order("created_at", {ascending:false});
+    if(nerr) console.error(nerr);
+    projectNotes = notes || [];
+  } else {
+    projects = [];
+    projectNotes = [];
+  }
+}
+
+function buildSelectors(){
+  // Team selector
+  els.teamSel.innerHTML = "";
+  const optAll = document.createElement("option");
+  optAll.value = "all";
+  optAll.textContent = "All teams";
+  els.teamSel.appendChild(optAll);
+
+  teams.forEach(t=>{
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name;
+    if(roleIs("rcm") && t.rcm_user_id === sessionUser.id) opt.selected = true;
+    els.teamSel.appendChild(opt);
+  });
+
+  rebuildStaffSelector();
+
+  if(roleIs("sndm")){
+    loadRcmUsersForTeamBuilder();
+  }
+
+  const year = Number(els.yearSel.value);
+  const q = Number(els.qSel.value);
+  const { start, end } = getQuarterWindow(year, q);
+  els.periodPill.textContent = `Period: ${year} Q${q} (${fmtDate(start)} to ${fmtDate(new Date(end.getTime()-86400000))})`;
+}
+
+async function loadRcmUsersForTeamBuilder(){
+  const { data, error } = await supabase
+    .from(T("profiles"))
+    .select("user_id, display_name, role")
+    .eq("role","rcm")
+    .order("display_name",{ascending:true});
+  if(error) { console.error(error); return; }
+
+  els.teamRcmUser.innerHTML = "";
+  (data||[]).forEach(p=>{
+    const opt = document.createElement("option");
+    opt.value = p.user_id;
+    opt.textContent = p.display_name || p.user_id;
+    els.teamRcmUser.appendChild(opt);
+  });
+}
+
+function rebuildStaffSelector(){
+  const teamId = els.teamSel.value;
+  els.staffSel.innerHTML = "";
+
+  const a = document.createElement("option");
+  a.value = "all";
+  a.textContent = "All staff";
+  els.staffSel.appendChild(a);
+
+  let pool = members;
+  if(teamId !== "all") pool = members.filter(m=> m.team_id === teamId);
+
+  const userIds = [...new Set(pool.map(p=> p.user_id))];
+
+  // For V1, fetch names from compliance.profiles (not auth)
+  if(!userIds.length) return;
+  supabase.from(T("profiles")).select("user_id, display_name, role")
+    .in("user_id", userIds)
+    .then(({data})=>{
+      (data||[]).forEach(p=>{
+        const opt = document.createElement("option");
+        opt.value = p.user_id;
+        opt.textContent = `${p.display_name || p.user_id} (${p.role})`;
+        els.staffSel.appendChild(opt);
+      });
+    });
+}
+
+function statusDot(completed, dueDateStr){
+  if(completed) return `<span class="dot good"></span>Green`;
+  if(!dueDateStr) return `<span class="dot warn"></span>Amber`;
+  const now = new Date();
+  const due = new Date(dueDateStr+"T00:00:00Z");
+  const diffDays = Math.floor((due - now)/86400000);
+  if(diffDays < 0) return `<span class="dot bad"></span>Red`;
+  if(diffDays <= 7) return `<span class="dot warn"></span>Amber`;
+  return `<span class="dot"></span>Grey`;
+}
+
+function getTaskTaggedStaff(taskId){
+  return assignments.filter(a=> a.task_id===taskId).map(a=> a.user_id);
+}
+
+async function resolveNames(userIds){
+  if(!userIds.length) return {};
+  const { data } = await supabase.from(T("profiles")).select("user_id, display_name").in("user_id", userIds);
+  const map = {};
+  (data||[]).forEach(p=> map[p.user_id] = p.display_name || p.user_id);
+  return map;
+}
+
+function isTaskCompleted(taskId){
+  return completions.some(c=> c.task_id===taskId);
+}
+
+function completedAt(taskId){
+  const c = completions.find(x=> x.task_id===taskId);
+  return c?.completed_at || null;
+}
+
+function linkedBrief(taskId){
+  const link = briefLinks.find(l=> l.task_id===taskId);
+  if(!link) return null;
+  return briefs.find(b=> b.id===link.brief_id) || null;
+}
+
+function makeFileUrl(storagePath){
+  if(!storagePath) return "";
+  const { data } = supabase.storage.from(BRIEFS_BUCKET).getPublicUrl(storagePath);
+  return data?.publicUrl || "";
+}
+
+function teamName(teamId){
+  const t = teams.find(x=> x.id===teamId);
+  return t?.name || "Unknown";
+}
+
+async function renderTasks(){
+  const year = Number(els.yearSel.value);
+  const quarter = Number(els.qSel.value);
+  const teamId = els.teamSel.value;
+  const staffId = els.staffSel.value;
+  const q = els.searchBox.value.trim();
+
+  let list = tasks.slice();
+  if(teamId !== "all") list = list.filter(t=> t.team_id === teamId);
+  if(staffId !== "all"){
+    list = list.filter(t => getTaskTaggedStaff(t.id).includes(staffId));
+  }
+  if(q){
+    list = list.filter(t => matchSearch(t.title, q) || matchSearch(t.tags, q));
+  }
+
+  if(roleIs("rcm")){
+    const myTeamIds = teams.filter(t=> t.rcm_user_id === sessionUser.id).map(t=> t.id);
+    list = list.filter(t=> myTeamIds.includes(t.team_id));
+  }
+
+  const total = list.length;
+  const done = list.filter(t=> isTaskCompleted(t.id)).length;
+  const pct = total ? Math.round((done/total)*100) : 0;
+  els.actualBar.style.width = pct + "%";
+  els.progressText.textContent = `Actual: ${done}/${total} (${pct}%) completed`;
+
+  const { start, end } = getQuarterWindow(year, quarter);
+  const now = new Date();
+  const totalMs = end - start;
+  const elapsedMs = Math.min(Math.max(now - start, 0), totalMs);
+  const expectedRatio = totalMs ? (elapsedMs/totalMs) : 0;
+  const expectedCount = Math.round(total * expectedRatio);
+  els.expectedText.textContent = `Expected by today: ~${expectedCount}/${total} (${Math.round(expectedRatio*100)}%)`;
+
+  const allTagged = [...new Set(list.flatMap(t=> getTaskTaggedStaff(t.id)))];
+  const nameMap = await resolveNames(allTagged);
+
+  els.tasksTbody.innerHTML = "";
+  for(const t of list){
+    const completed = isTaskCompleted(t.id);
+    const tagIds = getTaskTaggedStaff(t.id);
+    const tagNames = tagIds.map(id=> nameMap[id] || id).join(", ");
+    const b = linkedBrief(t.id);
+    const briefCell = b ? `${escapeHtml(b.title)}` : `<span class="muted">None</span>`;
+
+    let canComplete = false;
+    if(roleIs("sndm")) canComplete = true;
+    if(roleIs("rcm")){
+      const myTeamIds = teams.filter(x=> x.rcm_user_id === sessionUser.id).map(x=> x.id);
+      canComplete = myTeamIds.includes(t.team_id);
+    }
+
+    const doneCell = completed
+      ? `<button class="danger" data-undone="${t.id}" ${roleIs("staff")?"disabled":""}>Undo</button>`
+      : `<button class="primary" data-done="${t.id}" ${(!canComplete)?"disabled":""}>Complete</button>`;
+
+    const due = t.due_date ? t.due_date : "";
+    const status = statusDot(completed, due);
+
+    els.tasksTbody.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td>${doneCell}</td>
+        <td>
+          <div><b>${escapeHtml(t.title)}</b></div>
+          <div class="small muted">${completed ? ("Completed: "+fmtDate(completedAt(t.id))) : ""}</div>
+        </td>
+        <td>${escapeHtml(teamName(t.team_id))}</td>
+        <td>
+          <div class="small">${escapeHtml(tagNames || "—")}</div>
+          ${ roleIn(["sndm","rcm"]) ? `<button data-tag="${t.id}" style="margin-top:6px;">Tag staff</button>` : "" }
+        </td>
+        <td class="small">${escapeHtml(t.tags||"")}</td>
+        <td class="small">${escapeHtml(due)}</td>
+        <td class="small">${status}</td>
+        <td class="small">
+          ${briefCell}
+          ${ roleIs("sndm") ? `<button data-linkbrief="${t.id}" style="margin-top:6px;">Link brief</button>` : "" }
+        </td>
+      </tr>
+    `);
+  }
+
+  document.querySelectorAll("[data-done]").forEach(btn=>{
+    btn.onclick = async ()=> completeTask(btn.dataset.done);
+  });
+  document.querySelectorAll("[data-undone]").forEach(btn=>{
+    btn.onclick = async ()=> undoTask(btn.dataset.undone);
+  });
+  document.querySelectorAll("[data-tag]").forEach(btn=>{
+    btn.onclick = async ()=> tagStaffToTask(btn.dataset.tag);
+  });
+  document.querySelectorAll("[data-linkbrief]").forEach(btn=>{
+    btn.onclick = async ()=> linkBriefToTask(btn.dataset.linkbrief);
+  });
+}
+
+async function completeTask(taskId){
+  if(completions.find(c=> c.task_id===taskId)) return toast("Already completed.");
+  const { error } = await supabase.from(T("task_completions")).insert({
+    task_id: taskId,
+    completed_by: sessionUser.id,
+    completed_at: new Date().toISOString()
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Task completed.");
+  await refresh();
+}
+
+async function undoTask(taskId){
+  const { error } = await supabase.from(T("task_completions")).delete().eq("task_id", taskId);
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Completion removed.");
+  await refresh();
+}
+
+async function tagStaffToTask(taskId){
+  const teamId = tasks.find(t=> t.id===taskId)?.team_id;
+  const pool = members.filter(m=> m.team_id === teamId).map(m=> m.user_id);
+  if(!pool.length) return toast("No team members to tag.");
+
+  const nameMap = await resolveNames(pool);
+  const choices = pool.map(id=> `${nameMap[id] || id} = ${id}`).join("\n");
+  const picked = prompt("Paste the user_id to tag to this task (one at a time).\n\nChoices:\n"+choices);
+  if(!picked) return;
+
+  const { error } = await supabase.from(T("task_assignments")).insert({
+    task_id: taskId,
+    user_id: picked.trim()
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Staff tagged.");
+  await refresh();
+}
+
+async function linkBriefToTask(taskId){
+  if(!briefs.length) return toast("No briefs yet.");
+  const list = briefs.slice(0,50).map(b=> `${b.title} = ${b.id}`).join("\n");
+  const picked = prompt("Paste the brief_id to link to this task:\n\n"+list);
+  if(!picked) return;
+
+  await supabase.from(T("brief_task_links")).delete().eq("task_id", taskId);
+  const { error } = await supabase.from(T("brief_task_links")).insert({
+    task_id: taskId,
+    brief_id: picked.trim()
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Brief linked.");
+  await refresh();
+}
+
+async function renderBriefs(){
+  const q = els.searchBox.value.trim();
+  let list = briefs.slice();
+  if(q){
+    list = list.filter(b => matchSearch(b.title,q) || matchSearch(b.tags,q) || matchSearch(b.description,q));
+  }
+
+  els.briefsTbody.innerHTML = "";
+
+  for(const b of list){
+    const read = briefReads.some(r=> r.brief_id===b.id && r.user_id===sessionUser.id);
+    const url = makeFileUrl(b.storage_path);
+
+    const linkedTaskIds = briefLinks.filter(l=> l.brief_id===b.id).map(l=> l.task_id);
+    const linkedNames = linkedTaskIds.map(tid=>{
+      const t = tasks.find(x=> x.id===tid);
+      return t ? t.title : "";
+    }).filter(Boolean).slice(0,2).join(" | ");
+    const linkedHint = linkedNames ? `<div class="small muted">Linked: ${escapeHtml(linkedNames)}</div>` : "";
+
+    els.briefsTbody.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td>
+          <div><b>${escapeHtml(b.title)}</b></div>
+          ${linkedHint}
+          <div class="small muted">${escapeHtml(b.storage_path || "")}</div>
+        </td>
+        <td class="small">${escapeHtml(b.description || "")}</td>
+        <td class="small">${escapeHtml(b.tags || "")}</td>
+        <td class="small">${b.created_at ? fmtDate(b.created_at) : ""}</td>
+        <td>
+          <div class="row">
+            <button data-view="${escapeAttr(url)}" ${url ? "" : "disabled"}>View</button>
+            <a href="${escapeAttr(url)}" download style="text-decoration:none;">
+              <button ${url ? "" : "disabled"}>Download</button>
+            </a>
+            ${ roleIs("sndm") ? `<button class="danger" data-delbrief="${b.id}">Delete</button>` : "" }
+          </div>
+        </td>
+        <td>
+          <button class="${read ? "" : "primary"}" data-read="${b.id}">
+            ${read ? "Read" : "Mark read"}
+          </button>
+        </td>
+      </tr>
+    `);
+  }
+
+  document.querySelectorAll("[data-view]").forEach(btn=>{
+    btn.onclick = ()=> openViewer(btn.dataset.view);
+  });
+  document.querySelectorAll("[data-read]").forEach(btn=>{
+    btn.onclick = async ()=> markBriefRead(btn.dataset.read);
+  });
+  document.querySelectorAll("[data-delbrief]").forEach(btn=>{
+    btn.onclick = async ()=> deleteBrief(btn.dataset.delbrief);
+  });
+}
+
+function openViewer(url){
+  if(!url) return toast("No URL.");
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+async function markBriefRead(briefId){
+  if(briefReads.some(r=> r.brief_id===briefId && r.user_id===sessionUser.id)) return toast("Already marked read.");
+  const { error } = await supabase.from(T("brief_reads")).insert({
+    brief_id: briefId,
+    user_id: sessionUser.id,
+    read_at: new Date().toISOString()
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Marked read.");
+  await refresh();
+}
+
+async function deleteBrief(briefId){
+  if(!confirm("Delete this brief?")) return;
+  const { error } = await supabase.from(T("briefs")).delete().eq("id", briefId);
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Brief deleted.");
+  await refresh();
+}
+
+async function uploadBrief(){
+  const file = els.briefFile.files[0];
+  const title = els.briefTitle.value.trim();
+  const tags = els.briefTags.value.trim();
+  if(!file || !title) return toast("File + title required.");
+
+  const storagePath = `${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}_${file.name}`;
+  const { error: upErr } = await supabase.storage.from(BRIEFS_BUCKET).upload(storagePath, file, {
+    cacheControl: "3600",
+    upsert: false
+  });
+  if(upErr){ console.error(upErr); return toast(upErr.message); }
+
+  const desc = prompt("Brief description (what’s the point of this doc)?") || "";
+
+  const { error: insErr } = await supabase.from(T("briefs")).insert({
+    title,
+    description: desc,
+    tags,
+    storage_path: storagePath,
+    created_by: sessionUser.id,
+    created_at: new Date().toISOString()
+  });
+  if(insErr){ console.error(insErr); return toast(insErr.message); }
+
+  els.briefFile.value = "";
+  els.briefTitle.value = "";
+  els.briefTags.value = "";
+  toast("Brief uploaded.");
+  await refresh();
+}
+
+async function renderProjects(){
+  els.projectsList.innerHTML = "";
+  if(!roleIn(["rcm","sndm"])) return;
+
+  if(!projects.length){
+    els.projectsList.innerHTML = `<div class="card"><div class="small muted">No projects yet.</div></div>`;
+    return;
+  }
+
+  for(const p of projects){
+    const notes = projectNotes.filter(n=> n.project_id===p.id).slice(0,6);
+    const noteHtml = notes.map(n=> `<div class="small">• ${escapeHtml(n.note)} <span class="muted">(${fmtDate(n.created_at)})</span></div>`).join("");
+
+    els.projectsList.insertAdjacentHTML("beforeend", `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <div><b>${escapeHtml(p.title)}</b></div>
+            <div class="small muted">Status: ${escapeHtml(p.status || "")}</div>
+          </div>
+          <div class="row">
+            <button data-note="${p.id}">Add note</button>
+            <button class="danger" data-delproj="${p.id}">Delete</button>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          ${noteHtml || `<div class="small muted">No notes yet.</div>`}
+        </div>
+      </div>
+    `);
+  }
+
+  document.querySelectorAll("[data-note]").forEach(btn=>{
+    btn.onclick = async ()=> addProjectNote(btn.dataset.note);
+  });
+  document.querySelectorAll("[data-delproj]").forEach(btn=>{
+    btn.onclick = async ()=> deleteProject(btn.dataset.delproj);
+  });
+}
+
+async function addProject(){
+  const title = els.projTitle.value.trim();
+  const status = els.projStatus.value;
+  if(!title) return toast("Project title required.");
+
+  const { error } = await supabase.from(T("rcm_projects")).insert({
+    owner_user_id: sessionUser.id,
+    title,
+    status,
+    created_at: new Date().toISOString()
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  els.projTitle.value = "";
+  toast("Project added.");
+  await refresh();
+}
+
+async function addProjectNote(projectId){
+  const note = prompt("Progress note:");
+  if(!note) return;
+
+  const { error } = await supabase.from(T("rcm_project_notes")).insert({
+    project_id: projectId,
+    owner_user_id: sessionUser.id,
+    note,
+    created_at: new Date().toISOString()
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Note added.");
+  await refresh();
+}
+
+async function deleteProject(projectId){
+  if(!confirm("Delete this project?")) return;
+  await supabase.from(T("rcm_project_notes")).delete().eq("project_id", projectId).eq("owner_user_id", sessionUser.id);
+  const { error } = await supabase.from(T("rcm_projects")).delete().eq("id", projectId).eq("owner_user_id", sessionUser.id);
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Project deleted.");
+  await refresh();
+}
+
+async function renderTeams(){
+  if(!roleIs("sndm")) return;
+  els.teamsTbody.innerHTML = "";
+
+  const allUserIds = [...new Set([
+    ...teams.map(t=> t.rcm_user_id),
+    ...members.map(m=> m.user_id)
+  ])];
+  const nameMap = await resolveNames(allUserIds);
+
+  for(const t of teams){
+    const m = members.filter(x=> x.team_id===t.id);
+    const memberText = m.map(x=> `${nameMap[x.user_id] || x.user_id} (${x.role_label||"member"})`).join(", ");
+
+    els.teamsTbody.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td><b>${escapeHtml(t.name)}</b></td>
+        <td class="small">${escapeHtml(nameMap[t.rcm_user_id] || t.rcm_user_id)}</td>
+        <td class="small">${escapeHtml(memberText || "—")}</td>
+        <td>
+          <div class="row">
+            <input type="text" data-addmembername="${t.id}" placeholder="Display name"/>
+            <select data-addmemberrole="${t.id}">
+              <option value="IC">IC</option>
+              <option value="TRC">TRC</option>
+              <option value="Other">Other</option>
+            </select>
+            <button data-addmemberbtn="${t.id}">Add</button>
+          </div>
+        </td>
+        <td>
+          <button class="danger" data-delteam="${t.id}">Delete</button>
+        </td>
+      </tr>
+    `);
+  }
+
+  document.querySelectorAll("[data-addmemberbtn]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const teamId = btn.dataset.addmemberbtn;
+      const nameInput = document.querySelector(`[data-addmembername="${teamId}"]`);
+      const roleSel = document.querySelector(`[data-addmemberrole="${teamId}"]`);
+      const displayName = (nameInput.value||"").trim();
+      const roleLabel = roleSel.value;
+      if(!displayName) return toast("Display name required.");
+
+      // Create a profile for the member (staff role by default)
+      const userId = crypto.randomUUID();
+      await supabase.from(T("profiles")).upsert({
+        user_id: userId,
+        display_name: displayName,
+        role: "staff"
+      }, { onConflict: "user_id" });
+
+      const { error } = await supabase.from(T("team_members")).insert({
+        team_id: teamId,
+        user_id: userId,
+        role_label: roleLabel
+      });
+      if(error){ console.error(error); return toast(error.message); }
+      nameInput.value = "";
+      toast("Member added.");
+      await refresh();
+    };
+  });
+
+  document.querySelectorAll("[data-delteam]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm("Delete this team?")) return;
+      const teamId = btn.dataset.delteam;
+      await supabase.from(T("team_members")).delete().eq("team_id", teamId);
+      const { error } = await supabase.from(T("teams")).delete().eq("id", teamId);
+      if(error){ console.error(error); return toast(error.message); }
+      toast("Team deleted.");
+      await refresh();
+    };
+  });
+}
+
+async function createTeam(){
+  const name = els.teamName.value.trim();
+  const rcmUserId = els.teamRcmUser.value;
+  if(!name || !rcmUserId) return toast("Team name + RCM required.");
+
+  const { error } = await supabase.from(T("teams")).insert({
+    name,
+    rcm_user_id: rcmUserId
+  });
+  if(error){ console.error(error); return toast(error.message); }
+  els.teamName.value = "";
+  toast("Team created.");
+  await refresh();
+}
+
+async function renderAdminTasks(){
+  if(!roleIs("sndm")) return;
+  const teamId = els.teamSel.value;
+
+  let list = tasks.slice();
+  if(teamId !== "all") list = list.filter(t=> t.team_id===teamId);
+
+  els.adminTasksTbody.innerHTML = "";
+  for(const t of list){
+    els.adminTasksTbody.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td><b>${escapeHtml(t.title)}</b></td>
+        <td class="small">${escapeHtml(t.tags||"")}</td>
+        <td class="small">${escapeHtml(t.due_date||"")}</td>
+        <td class="small">${escapeHtml(teamName(t.team_id))}</td>
+        <td class="small">${t.year} Q${t.quarter}</td>
+        <td class="row">
+          <button class="danger" data-deltask="${t.id}">Delete</button>
+        </td>
+      </tr>
+    `);
+  }
+
+  document.querySelectorAll("[data-deltask]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm("Delete this task?")) return;
+      const id = btn.dataset.deltask;
+      await supabase.from(T("task_assignments")).delete().eq("task_id", id);
+      await supabase.from(T("brief_task_links")).delete().eq("task_id", id);
+      await supabase.from(T("task_completions")).delete().eq("task_id", id);
+      const { error } = await supabase.from(T("compliance_tasks")).delete().eq("id", id);
+      if(error){ console.error(error); return toast(error.message); }
+      toast("Task deleted.");
+      await refresh();
+    };
+  });
+}
+
+async function createTask(){
+  const teamId = els.teamSel.value;
+  if(teamId === "all") return toast("Select a specific team to create a task.");
+  const title = els.taskTitle.value.trim();
+  const tags = els.taskTags.value.trim();
+  const due = els.taskDue.value.trim() || null;
+
+  const year = Number(els.yearSel.value);
+  const quarter = Number(els.qSel.value);
+
+  if(!title) return toast("Task title required.");
+
+  const { error } = await supabase.from(T("compliance_tasks")).insert({
+    team_id: teamId,
+    year, quarter,
+    title,
+    tags,
+    due_date: due,
+    created_by: sessionUser.id
+  });
+  if(error){ console.error(error); return toast(error.message); }
+
+  els.taskTitle.value = "";
+  els.taskTags.value = "";
+  els.taskDue.value = "";
+  toast("Task created.");
+  await refresh();
+}
+
+function renderGuidance(){
+  if(roleIs("sndm")){
+    els.guidanceBox.innerHTML = `
+      • Set and maintain core compliance tasks per quarter.<br/>
+      • Keep team membership current (RCM parent with IC/TRC mapped).<br/>
+      • Monitor progress vs expected and intervene early (because “late panic” is not a strategy).<br/>
+      • Keep brief library clean: title + description + tags, link relevant tasks.
+    `;
+  } else if(roleIs("rcm")){
+    els.guidanceBox.innerHTML = `
+      • Execute your quarter task list: complete items and tag staff where needed.<br/>
+      • Use briefs: mark read & understood.<br/>
+      • Maintain your project log: short notes, blockers, outcomes.
+    `;
+  } else {
+    els.guidanceBox.innerHTML = `
+      • Use Briefing Hub as source of truth.<br/>
+      • Mark briefs read & understood.<br/>
+      • (Later) tasks will be assigned directly to you. For now, enjoy the calm.
+    `;
+  }
+}
+
+function renderSnapshot(){
+  const year = Number(els.yearSel.value);
+  const q = Number(els.qSel.value);
+  const teamId = els.teamSel.value;
+
+  let list = tasks.slice();
+  if(teamId !== "all") list = list.filter(t=> t.team_id===teamId);
+  if(roleIs("rcm")){
+    const myTeamIds = teams.filter(t=> t.rcm_user_id === sessionUser.id).map(t=> t.id);
+    list = list.filter(t=> myTeamIds.includes(t.team_id));
+  }
+
+  const total = list.length;
+  const done = list.filter(t=> isTaskCompleted(t.id)).length;
+  const open = total - done;
+
+  els.snapshotText.innerHTML = `
+    <div>Period: <b>${year} Q${q}</b></div>
+    <div>Tasks: <b>${total}</b> | Open: <b>${open}</b> | Completed: <b>${done}</b></div>
+    <div class="muted" style="margin-top:6px;">
+      Team scope: <b>${teamId==="all" ? "All teams" : teamName(teamId)}</b>
+    </div>
+  `;
+}
+
+async function refresh(){
+  await loadCore();
+  buildSelectors();
+  renderGuidance();
+  renderSnapshot();
+  await renderTasks();
+  await renderBriefs();
+  await renderProjects();
+  await renderTeams();
+  await renderAdminTasks();
+}
+
+// Wire UI
+function wireUI(){
+  els.enterBtn.onclick = enterWithIdentity;
+
+  els.switchUserBtn.onclick = ()=>{
+    clearIdentity();
+    showIdentityCard();
+  };
+
+  els.refreshBtn.onclick = refresh;
+  els.jumpComplianceBtn.onclick = ()=> setTab("compliance");
+  els.jumpBriefsBtn.onclick = ()=> setTab("briefs");
+
+  els.yearSel.onchange = refresh;
+  els.qSel.onchange = refresh;
+  els.teamSel.onchange = async ()=>{
+    rebuildStaffSelector();
+    await refresh();
+  };
+  els.staffSel.onchange = renderTasks;
+  els.searchBox.oninput = async ()=>{
+    await renderTasks();
+    await renderBriefs();
+  };
+
+  els.tabs.onclick = (e)=>{
+    const tab = e.target?.dataset?.tab;
+    if(tab) setTab(tab);
+  };
+
+  els.uploadBriefBtn.onclick = uploadBrief;
+  els.createTaskBtn.onclick = createTask;
+  els.createTeamBtn.onclick = createTeam;
+  els.addProjBtn.onclick = addProject;
+}
+
+async function boot(){
+  wireUI();
+
+  // Load stored identity if present
+  const id = loadIdentity();
+  if(id && id.user_id && id.display_name && id.role){
+    sessionUser = { id: id.user_id };
+    profile = { user_id: id.user_id, display_name: id.display_name, role: id.role };
+
+    els.identityCard.classList.add("hide");
+    els.app.classList.remove("hide");
+    els.userPill.textContent = `${profile.display_name} (${profile.role})`;
+    enforceRoleUI();
+    initYearQuarter();
+
+    // Ensure profile exists server-side (helpful for filters)
+    await upsertProfile();
+
+    await refresh();
+    setTab("compliance");
+  } else {
+    showIdentityCard();
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
