@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
+    /* === Remembered theme (Winter Points Logbook-ish) === */
     :root{
       --bg: #f3f4f6;
       --card:#ffffff;
@@ -109,7 +110,9 @@
       color: var(--muted);
     }
 
-    input, select, textarea, button{ font: inherit; }
+    input, select, textarea, button{
+      font: inherit;
+    }
 
     input[type="text"], input[type="email"], input[type="password"], select, textarea{
       border: 1px solid var(--line);
@@ -144,7 +147,10 @@
       border-color:#fecaca;
       color:#991b1b;
     }
-    button:disabled{ opacity:.55; cursor:not-allowed; }
+    button:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
 
     .tabs{
       display:flex;
@@ -240,6 +246,12 @@
       gap: 12px;
     }
 
+    .hint{
+      border-left: 3px solid var(--line);
+      padding-left: 10px;
+      margin-top: 10px;
+    }
+
     @media (max-width: 1100px){
       .grid{ grid-template-columns: 1fr; }
       .split{ grid-template-columns: 1fr; }
@@ -251,41 +263,36 @@
 <header>
   <h1>Control Compliance Hub (V1)</h1>
   <div class="meta">
-    <span class="pill" id="envPill">Mini Project Hub + Supabase</span>
-    <span class="pill" id="userPill">Not set</span>
-    <button id="switchUserBtn" class="pill">Switch user</button>
+    <span class="pill" id="envPill">Mini Project Hub (Supabase schema: compliance)</span>
+    <span class="pill" id="userPill">Not signed in</span>
+    <button id="signOutBtn" class="pill" style="display:none;">Sign out</button>
   </div>
 </header>
 
 <div class="wrap">
 
-  <!-- DEV IDENTITY (bypasses Supabase Auth for now) -->
-  <div class="card" id="identityCard">
-    <h2>Enter dashboard (Auth bypass)</h2>
+  <!-- AUTH CARD -->
+  <div class="card" id="authCard">
+    <h2>Sign in</h2>
     <div class="row">
       <div>
-        <label>Display name</label><br/>
-        <input id="devName" type="text" placeholder="e.g. Brad / SNDM / RCM A"/>
+        <label>Email</label><br/>
+        <input id="authEmail" type="email" placeholder="name@domain.com" autocomplete="username"/>
       </div>
       <div>
-        <label>Role</label><br/>
-        <select id="devRole">
-          <option value="sndm">sndm</option>
-          <option value="rcm">rcm</option>
-          <option value="staff">staff</option>
-        </select>
-      </div>
-      <div>
-        <label>User UUID (optional)</label><br/>
-        <input id="devUuid" type="text" placeholder="leave blank to auto-generate"/>
+        <label>Password</label><br/>
+        <input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
       </div>
       <div style="margin-top:18px;">
-        <button class="primary" id="enterBtn">Enter</button>
+        <button class="primary" id="signInBtn">Sign in</button>
+        <button id="magicBtn" style="margin-left:8px;">Email link</button>
       </div>
     </div>
-    <p class="small" style="margin:10px 0 0;">
-      This V1 intentionally bypasses Supabase Auth so you can deploy and iterate without fighting logins. It writes to <code>compliance.*</code> tables using the anon key (with RLS off initially).
-    </p>
+
+    <div class="hint small">
+      <div><b>Heads up:</b> this page won’t “bypass auth” anymore because that’s how data leaks happen.</div>
+      <div>Use Supabase Auth users, and roles live in <code>compliance.profiles.role</code> (sndm / rcm / staff).</div>
+    </div>
   </div>
 
   <!-- APP -->
@@ -356,9 +363,9 @@
               <tr>
                 <th style="width:30px;">Done</th>
                 <th>Task</th>
-                <th style="width:150px;">Team</th>
-                <th style="width:180px;">Tagged Staff</th>
-                <th style="width:120px;">Tags</th>
+                <th style="width:140px;">Team</th>
+                <th style="width:190px;">Tagged Staff</th>
+                <th style="width:140px;">Tags</th>
                 <th style="width:120px;">Due</th>
                 <th style="width:90px;">Status</th>
                 <th style="width:160px;">Linked Brief</th>
@@ -386,10 +393,10 @@
               <thead>
               <tr>
                 <th>Brief</th>
-                <th style="width:360px;">Description</th>
+                <th style="width:320px;">Description</th>
                 <th style="width:120px;">Tags</th>
                 <th style="width:120px;">Uploaded</th>
-                <th style="width:200px;">Actions</th>
+                <th style="width:160px;">Actions</th>
                 <th style="width:140px;">Read & Understood</th>
               </tr>
               </thead>
@@ -416,7 +423,7 @@
 
           <div id="projectsList" class="split"></div>
           <p class="small" style="margin-top:10px;">
-            Projects are user-owned. In V2 we can optionally expose rollups to SNDM.
+            Projects are owned by you. No shared ownership yet, because humans can’t share crisps without conflict.
           </p>
         </div>
 
@@ -434,7 +441,7 @@
               <thead>
               <tr>
                 <th>Team</th>
-                <th style="width:160px;">RCM</th>
+                <th style="width:180px;">RCM</th>
                 <th>Members</th>
                 <th style="width:260px;">Add member</th>
                 <th style="width:120px;">Actions</th>
@@ -449,7 +456,7 @@
         <div class="card hide" id="tab-admin">
           <h2>Task Admin (SNDM)</h2>
           <p class="small" style="margin-top:-6px;">
-            Core compliance tasks live here. RCM can mark completion, not edit definitions.
+            Core compliance tasks live here. RCM can only mark completion, not edit the task definition.
           </p>
 
           <div class="row">
@@ -468,9 +475,9 @@
               <thead>
               <tr>
                 <th>Task</th>
-                <th style="width:120px;">Tags</th>
+                <th style="width:140px;">Tags</th>
                 <th style="width:110px;">Due</th>
-                <th style="width:160px;">Team</th>
+                <th style="width:140px;">Team</th>
                 <th style="width:110px;">Period</th>
                 <th style="width:180px;">Actions</th>
               </tr>
@@ -489,13 +496,13 @@
           <h2>Operational Snapshot</h2>
           <div class="small" id="snapshotText">Loading…</div>
           <div style="margin-top:10px;">
-            <div class="small muted">V1: ship something, then polish it. It’s not glamorous, but neither is Excel.</div>
+            <div class="small muted">This is V1. It’s meant to run the basics, not solve the human condition.</div>
           </div>
         </div>
 
         <div class="card">
           <h2>What you should be doing</h2>
-          <div class="small" id="guidanceBox">-</div>
+          <div class="small" id="guidanceBox">- Loading role guidance…</div>
         </div>
 
         <div class="card">
@@ -506,7 +513,7 @@
             <button id="jumpBriefsBtn">Briefs</button>
           </div>
           <p class="small" style="margin-top:10px;">
-            V1 rule: data is truth, and humans are an uncontrolled variable.
+            Auto-refresh runs every 10 seconds once signed in.
           </p>
         </div>
 
@@ -519,42 +526,37 @@
 
 <script>
 /**
- * ============================================
- * MINI PROJECT HUB + SUPABASE (V1 BOOTSTRAP)
- * ============================================
- * - Uses a dedicated schema: compliance
- * - Does NOT use Supabase Auth (for now)
- * - Stores a "dev identity" in localStorage and in compliance.profiles
- *
- * When you later turn on Supabase Auth:
- * - map profiles.user_id = auth.users.id
- * - replace the identityCard with sign-in
+ * ===========================
+ * SUPABASE CONFIG (EDIT THIS)
+ * ===========================
+ * This is meant for the Mini Project Hub: keep all tables in schema = 'compliance'
+ * and do NOT touch other apps.
  */
 const APP_SCHEMA = "compliance";
-const BRIEFS_BUCKET = "compliance_briefs"; // create this bucket in Supabase Storage
-
-// EDIT THESE:
 const SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
 
-// Client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Convenience: schema-qualified table handle
+const db = (table) => supabase.schema(APP_SCHEMA).from(table);
 
-// Helper to reference schema-qualified tables
-const T = (name) => `${APP_SCHEMA}.${name}`;
-
-// UI refs
 const els = {
-  identityCard: document.getElementById("identityCard"),
+  authCard: document.getElementById("authCard"),
   app: document.getElementById("app"),
-  envPill: document.getElementById("envPill"),
+  email: document.getElementById("authEmail"),
+  pass: document.getElementById("authPass"),
+  signIn: document.getElementById("signInBtn"),
+  magic: document.getElementById("magicBtn"),
+  signOut: document.getElementById("signOutBtn"),
   userPill: document.getElementById("userPill"),
-  switchUserBtn: document.getElementById("switchUserBtn"),
-
-  devName: document.getElementById("devName"),
-  devRole: document.getElementById("devRole"),
-  devUuid: document.getElementById("devUuid"),
-  enterBtn: document.getElementById("enterBtn"),
+  rolePill: document.getElementById("rolePill"),
+  envPill: document.getElementById("envPill"),
 
   yearSel: document.getElementById("yearSel"),
   qSel: document.getElementById("qSel"),
@@ -562,7 +564,6 @@ const els = {
   staffSel: document.getElementById("staffSel"),
   searchBox: document.getElementById("searchBox"),
   periodPill: document.getElementById("periodPill"),
-  rolePill: document.getElementById("rolePill"),
 
   tabs: document.getElementById("tabs"),
   teamsTab: document.getElementById("teamsTab"),
@@ -585,21 +586,25 @@ const els = {
   jumpComplianceBtn: document.getElementById("jumpComplianceBtn"),
   jumpBriefsBtn: document.getElementById("jumpBriefsBtn"),
 
+  // Brief upload
   briefUploadRow: document.getElementById("briefUploadRow"),
   briefFile: document.getElementById("briefFile"),
   briefTitle: document.getElementById("briefTitle"),
   briefTags: document.getElementById("briefTags"),
   uploadBriefBtn: document.getElementById("uploadBriefBtn"),
 
+  // Admin task create
   taskTitle: document.getElementById("taskTitle"),
   taskTags: document.getElementById("taskTags"),
   taskDue: document.getElementById("taskDue"),
   createTaskBtn: document.getElementById("createTaskBtn"),
 
+  // Teams
   teamName: document.getElementById("teamName"),
   teamRcmUser: document.getElementById("teamRcmUser"),
   createTeamBtn: document.getElementById("createTeamBtn"),
 
+  // Projects
   projTitle: document.getElementById("projTitle"),
   projStatus: document.getElementById("projStatus"),
   addProjBtn: document.getElementById("addProjBtn"),
@@ -607,10 +612,8 @@ const els = {
   toast: document.getElementById("toast"),
 };
 
-// State
-let sessionUser = null; // { id, email? }
-let profile = null;     // { user_id, display_name, role }
-
+let sessionUser = null;
+let profile = null; // {user_id, display_name, role}
 let teams = [];
 let members = [];
 let tasks = [];
@@ -622,7 +625,8 @@ let briefLinks = [];
 let projects = [];
 let projectNotes = [];
 
-// Toast
+let refreshTimer = null;
+
 function toast(msg){
   els.toast.textContent = msg;
   els.toast.style.display = "block";
@@ -631,24 +635,30 @@ function toast(msg){
 }
 
 function pad(n){ return String(n).padStart(2,"0"); }
-
-function getQuarterWindow(year, q){
-  const qStartMonth = (q-1)*3;
-  const start = new Date(Date.UTC(year, qStartMonth, 1, 0,0,0));
-  const end = new Date(Date.UTC(year, qStartMonth+3, 1, 0,0,0)); // exclusive
-  return { start, end };
-}
-
 function fmtDate(d){
   if(!d) return "";
   const x = new Date(d);
   return `${x.getUTCFullYear()}-${pad(x.getUTCMonth()+1)}-${pad(x.getUTCDate())}`;
 }
-
+function getQuarterWindow(year, q){
+  const qStartMonth = (q-1)*3; // 0,3,6,9
+  const start = new Date(Date.UTC(year, qStartMonth, 1, 0,0,0));
+  const end = new Date(Date.UTC(year, qStartMonth+3, 1, 0,0,0)); // exclusive
+  return { start, end };
+}
 function matchSearch(s, q){
   if(!q) return true;
   return (s||"").toLowerCase().includes(q.toLowerCase());
 }
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
 
 function roleIs(r){ return (profile?.role || "") === r; }
 function roleIn(arr){ return arr.includes(profile?.role || ""); }
@@ -665,11 +675,44 @@ function enforceRoleUI(){
   els.rolePill.textContent = `Role: ${profile?.role || "-"}`;
   els.teamsTab.style.display = roleIs("sndm") ? "" : "none";
   els.adminTab.style.display = roleIs("sndm") ? "" : "none";
-  els.briefUploadRow.style.display = roleIs("sndm") ? "flex" : "none";
 
+  els.briefUploadRow.style.display = roleIs("sndm") ? "flex" : "none";
   document.querySelector('[data-tab="projects"]').style.display = roleIn(["rcm","sndm"]) ? "" : "none";
   document.querySelector('[data-tab="compliance"]').style.display = roleIn(["rcm","sndm","staff"]) ? "" : "none";
   document.querySelector('[data-tab="briefs"]').style.display = roleIn(["rcm","sndm","staff"]) ? "" : "none";
+}
+
+async function signIn(){
+  const email = els.email.value.trim();
+  const password = els.pass.value;
+  if(!email || !password) return toast("Email + password required.");
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if(error) return toast(error.message);
+  toast("Signed in.");
+}
+
+async function sendMagicLink(){
+  const email = els.email.value.trim();
+  if(!email) return toast("Enter your email first.");
+  // IMPORTANT: set the redirect URL in Supabase Auth settings to your GitHub Pages URL.
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  if(error) return toast(error.message);
+  toast("Magic link sent. Check your email.");
+}
+
+async function signOut(){
+  await supabase.auth.signOut();
+  stopAutoRefresh();
+  sessionUser = null;
+  profile = null;
+  els.app.classList.add("hide");
+  els.authCard.classList.remove("hide");
+  els.signOut.style.display = "none";
+  els.userPill.textContent = "Not signed in";
+  toast("Signed out.");
 }
 
 function initYearQuarter(){
@@ -683,169 +726,92 @@ function initYearQuarter(){
     if(yy===y) opt.selected = true;
     els.yearSel.appendChild(opt);
   }
-  const m = now.getUTCMonth();
+  const m = now.getUTCMonth(); // 0-11
   const q = Math.floor(m/3)+1;
   els.qSel.value = String(q);
 }
 
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
+async function ensureProfile(){
+  // Loads profile row, and creates one if missing (role defaults to 'staff' until an SNDM grants/changes it).
+  const { data: sess } = await supabase.auth.getSession();
+  sessionUser = sess?.session?.user || null;
+  if(!sessionUser) return null;
 
-// Identity persistence (localStorage)
-const LS_KEY = "compliancehub.identity.v1";
-function loadIdentity(){
-  try{
-    return JSON.parse(localStorage.getItem(LS_KEY) || "null");
-  } catch { return null; }
-}
-function saveIdentity(id){
-  localStorage.setItem(LS_KEY, JSON.stringify(id));
-}
-function clearIdentity(){
-  localStorage.removeItem(LS_KEY);
-}
-
-async function upsertProfile(){
-  // Make sure the profile exists in compliance.profiles
-  const { error } = await supabase
-    .from(T("profiles"))
-    .upsert({
-      user_id: profile.user_id,
-      display_name: profile.display_name,
-      role: profile.role
-    }, { onConflict: "user_id" });
+  const { data, error } = await db("profiles")
+    .select("user_id, display_name, role")
+    .eq("user_id", sessionUser.id)
+    .maybeSingle();
 
   if(error){
     console.error(error);
-    toast("Profile upsert failed (check schema/table + RLS off).");
+    toast("Profile load failed. Check RLS / schema.");
+    return null;
   }
-}
 
-async function enterWithIdentity(){
-  const displayName = (els.devName.value || "").trim();
-  const role = els.devRole.value;
-  let uuid = (els.devUuid.value || "").trim();
+  if(data) return data;
 
-  if(!displayName) return toast("Display name required.");
-  if(uuid && !isUuid(uuid)) return toast("User UUID doesn't look like a UUID.");
-  if(!uuid) uuid = crypto.randomUUID();
+  // Create minimal profile
+  const display = (sessionUser.email || "User").split("@")[0];
+  const ins = await db("profiles").insert({
+    user_id: sessionUser.id,
+    display_name: display,
+    role: "staff"
+  });
+  if(ins.error){
+    console.error(ins.error);
+    toast("Profile auto-create failed. Run the SQL bootstrap.");
+    return null;
+  }
 
-  sessionUser = { id: uuid };
-  profile = { user_id: uuid, display_name: displayName, role };
+  const { data: created } = await db("profiles")
+    .select("user_id, display_name, role")
+    .eq("user_id", sessionUser.id)
+    .single();
 
-  saveIdentity(profile);
-
-  await upsertProfile();
-
-  els.identityCard.classList.add("hide");
-  els.app.classList.remove("hide");
-  els.userPill.textContent = `${profile.display_name} (${profile.role})`;
-  enforceRoleUI();
-  initYearQuarter();
-  await refresh();
-  setTab("compliance");
-}
-
-function showIdentityCard(){
-  els.app.classList.add("hide");
-  els.identityCard.classList.remove("hide");
-  els.userPill.textContent = "Not set";
-  els.rolePill.textContent = "Role: -";
-}
-
-function isUuid(s){
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+  return created || null;
 }
 
 async function loadCore(){
   const year = Number(els.yearSel.value);
   const quarter = Number(els.qSel.value);
 
-  // Teams
-  {
-    const { data, error } = await supabase.from(T("teams")).select("*").order("name", {ascending:true});
-    if(error) console.error(error);
-    teams = data || [];
-  }
+  const t1 = await db("teams").select("*").order("name", {ascending:true});
+  teams = t1.data || [];
 
-  // Members
-  {
-    const { data, error } = await supabase.from(T("team_members")).select("*");
-    if(error) console.error(error);
-    members = data || [];
-  }
+  const t2 = await db("team_members").select("*");
+  members = t2.data || [];
 
-  // Tasks for period
-  {
-    const { data, error } = await supabase
-      .from(T("compliance_tasks"))
-      .select("*")
-      .eq("year", year)
-      .eq("quarter", quarter)
-      .order("due_date", {ascending:true});
-    if(error) console.error(error);
-    tasks = data || [];
-  }
+  const t3 = await db("compliance_tasks")
+    .select("*")
+    .eq("year", year)
+    .eq("quarter", quarter)
+    .order("due_date", {ascending:true});
+  tasks = t3.data || [];
 
-  // Assignments
-  {
-    const { data, error } = await supabase.from(T("task_assignments")).select("*");
-    if(error) console.error(error);
-    assignments = data || [];
-  }
+  const t4 = await db("task_assignments").select("*");
+  assignments = t4.data || [];
 
-  // Completions
-  {
-    const { data, error } = await supabase.from(T("task_completions")).select("*");
-    if(error) console.error(error);
-    completions = data || [];
-  }
+  const t5 = await db("task_completions").select("*");
+  completions = t5.data || [];
 
-  // Briefs
-  {
-    const { data, error } = await supabase.from(T("briefs")).select("*").order("created_at",{ascending:false});
-    if(error) console.error(error);
-    briefs = data || [];
-  }
+  const t6 = await db("briefs").select("*").order("created_at",{ascending:false});
+  briefs = t6.data || [];
 
-  // Brief reads
-  {
-    const { data, error } = await supabase.from(T("brief_reads")).select("*");
-    if(error) console.error(error);
-    briefReads = data || [];
-  }
+  const t7 = await db("brief_reads").select("*");
+  briefReads = t7.data || [];
 
-  // Brief-task links
-  {
-    const { data, error } = await supabase.from(T("brief_task_links")).select("*");
-    if(error) console.error(error);
-    briefLinks = data || [];
-  }
+  const t8 = await db("brief_task_links").select("*");
+  briefLinks = t8.data || [];
 
-  // Projects + notes
   if(roleIn(["rcm","sndm"])){
-    const { data, error } = await supabase
-      .from(T("rcm_projects"))
+    const p = await db("rcm_projects")
       .select("*")
       .eq("owner_user_id", sessionUser.id)
       .order("created_at",{ascending:false});
-    if(error) console.error(error);
-    projects = data || [];
+    projects = p.data || [];
 
-    const { data: notes, error: nerr } = await supabase
-      .from(T("rcm_project_notes"))
-      .select("*")
-      .eq("owner_user_id", sessionUser.id)
-      .order("created_at", {ascending:false});
-    if(nerr) console.error(nerr);
-    projectNotes = notes || [];
+    const n = await db("rcm_project_notes").select("*");
+    projectNotes = n.data || [];
   } else {
     projects = [];
     projectNotes = [];
@@ -881,8 +847,7 @@ function buildSelectors(){
 }
 
 async function loadRcmUsersForTeamBuilder(){
-  const { data, error } = await supabase
-    .from(T("profiles"))
+  const { data, error } = await db("profiles")
     .select("user_id, display_name, role")
     .eq("role","rcm")
     .order("display_name",{ascending:true});
@@ -897,7 +862,7 @@ async function loadRcmUsersForTeamBuilder(){
   });
 }
 
-function rebuildStaffSelector(){
+async function rebuildStaffSelector(){
   const teamId = els.teamSel.value;
   els.staffSel.innerHTML = "";
 
@@ -910,19 +875,20 @@ function rebuildStaffSelector(){
   if(teamId !== "all") pool = members.filter(m=> m.team_id === teamId);
 
   const userIds = [...new Set(pool.map(p=> p.user_id))];
-
-  // For V1, fetch names from compliance.profiles (not auth)
   if(!userIds.length) return;
-  supabase.from(T("profiles")).select("user_id, display_name, role")
-    .in("user_id", userIds)
-    .then(({data})=>{
-      (data||[]).forEach(p=>{
-        const opt = document.createElement("option");
-        opt.value = p.user_id;
-        opt.textContent = `${p.display_name || p.user_id} (${p.role})`;
-        els.staffSel.appendChild(opt);
-      });
-    });
+
+  const { data } = await db("profiles").select("user_id, display_name, role").in("user_id", userIds);
+  (data||[]).forEach(p=>{
+    const opt = document.createElement("option");
+    opt.value = p.user_id;
+    opt.textContent = `${p.display_name || p.user_id} (${p.role})`;
+    els.staffSel.appendChild(opt);
+  });
+}
+
+function teamName(teamId){
+  const t = teams.find(x=> x.id===teamId);
+  return t?.name || "Unknown";
 }
 
 function statusDot(completed, dueDateStr){
@@ -939,39 +905,26 @@ function statusDot(completed, dueDateStr){
 function getTaskTaggedStaff(taskId){
   return assignments.filter(a=> a.task_id===taskId).map(a=> a.user_id);
 }
-
-async function resolveNames(userIds){
-  if(!userIds.length) return {};
-  const { data } = await supabase.from(T("profiles")).select("user_id, display_name").in("user_id", userIds);
-  const map = {};
-  (data||[]).forEach(p=> map[p.user_id] = p.display_name || p.user_id);
-  return map;
-}
-
-function isTaskCompleted(taskId){
-  return completions.some(c=> c.task_id===taskId);
-}
-
-function completedAt(taskId){
-  const c = completions.find(x=> x.task_id===taskId);
-  return c?.completed_at || null;
-}
-
+function isTaskCompleted(taskId){ return completions.some(c=> c.task_id===taskId); }
+function completedAt(taskId){ return completions.find(x=> x.task_id===taskId)?.completed_at || null; }
 function linkedBrief(taskId){
   const link = briefLinks.find(l=> l.task_id===taskId);
   if(!link) return null;
   return briefs.find(b=> b.id===link.brief_id) || null;
 }
 
-function makeFileUrl(storagePath){
-  if(!storagePath) return "";
-  const { data } = supabase.storage.from(BRIEFS_BUCKET).getPublicUrl(storagePath);
-  return data?.publicUrl || "";
+async function resolveNames(userIds){
+  if(!userIds.length) return {};
+  const { data } = await db("profiles").select("user_id, display_name").in("user_id", userIds);
+  const map = {};
+  (data||[]).forEach(p=> map[p.user_id] = p.display_name || p.user_id);
+  return map;
 }
 
-function teamName(teamId){
-  const t = teams.find(x=> x.id===teamId);
-  return t?.name || "Unknown";
+function makeFileUrl(storagePath){
+  // bucket = compliance_briefs (public). If you make it private, swap to createSignedUrl.
+  const { data } = supabase.storage.from("compliance_briefs").getPublicUrl(storagePath);
+  return data?.publicUrl || "";
 }
 
 async function renderTasks(){
@@ -983,9 +936,11 @@ async function renderTasks(){
 
   let list = tasks.slice();
   if(teamId !== "all") list = list.filter(t=> t.team_id === teamId);
+
   if(staffId !== "all"){
     list = list.filter(t => getTaskTaggedStaff(t.id).includes(staffId));
   }
+
   if(q){
     list = list.filter(t => matchSearch(t.title, q) || matchSearch(t.tags, q));
   }
@@ -1072,8 +1027,9 @@ async function renderTasks(){
 }
 
 async function completeTask(taskId){
-  if(completions.find(c=> c.task_id===taskId)) return toast("Already completed.");
-  const { error } = await supabase.from(T("task_completions")).insert({
+  const already = completions.find(c=> c.task_id===taskId);
+  if(already) return toast("Already completed.");
+  const { error } = await db("task_completions").insert({
     task_id: taskId,
     completed_by: sessionUser.id,
     completed_at: new Date().toISOString()
@@ -1084,7 +1040,7 @@ async function completeTask(taskId){
 }
 
 async function undoTask(taskId){
-  const { error } = await supabase.from(T("task_completions")).delete().eq("task_id", taskId);
+  const { error } = await db("task_completions").delete().eq("task_id", taskId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Completion removed.");
   await refresh();
@@ -1100,7 +1056,7 @@ async function tagStaffToTask(taskId){
   const picked = prompt("Paste the user_id to tag to this task (one at a time).\n\nChoices:\n"+choices);
   if(!picked) return;
 
-  const { error } = await supabase.from(T("task_assignments")).insert({
+  const { error } = await db("task_assignments").insert({
     task_id: taskId,
     user_id: picked.trim()
   });
@@ -1111,15 +1067,12 @@ async function tagStaffToTask(taskId){
 
 async function linkBriefToTask(taskId){
   if(!briefs.length) return toast("No briefs yet.");
-  const list = briefs.slice(0,50).map(b=> `${b.title} = ${b.id}`).join("\n");
+  const list = briefs.slice(0,40).map(b=> `${b.title} = ${b.id}`).join("\n");
   const picked = prompt("Paste the brief_id to link to this task:\n\n"+list);
   if(!picked) return;
 
-  await supabase.from(T("brief_task_links")).delete().eq("task_id", taskId);
-  const { error } = await supabase.from(T("brief_task_links")).insert({
-    task_id: taskId,
-    brief_id: picked.trim()
-  });
+  await db("brief_task_links").delete().eq("task_id", taskId);
+  const { error } = await db("brief_task_links").insert({ task_id: taskId, brief_id: picked.trim() });
   if(error){ console.error(error); return toast(error.message); }
   toast("Brief linked.");
   await refresh();
@@ -1133,16 +1086,12 @@ async function renderBriefs(){
   }
 
   els.briefsTbody.innerHTML = "";
-
   for(const b of list){
     const read = briefReads.some(r=> r.brief_id===b.id && r.user_id===sessionUser.id);
     const url = makeFileUrl(b.storage_path);
 
     const linkedTaskIds = briefLinks.filter(l=> l.brief_id===b.id).map(l=> l.task_id);
-    const linkedNames = linkedTaskIds.map(tid=>{
-      const t = tasks.find(x=> x.id===tid);
-      return t ? t.title : "";
-    }).filter(Boolean).slice(0,2).join(" | ");
+    const linkedNames = linkedTaskIds.map(tid=> tasks.find(x=> x.id===tid)?.title || "").filter(Boolean).slice(0,2).join(" | ");
     const linkedHint = linkedNames ? `<div class="small muted">Linked: ${escapeHtml(linkedNames)}</div>` : "";
 
     els.briefsTbody.insertAdjacentHTML("beforeend", `
@@ -1157,9 +1106,9 @@ async function renderBriefs(){
         <td class="small">${b.created_at ? fmtDate(b.created_at) : ""}</td>
         <td>
           <div class="row">
-            <button data-view="${escapeAttr(url)}" ${url ? "" : "disabled"}>View</button>
+            <button data-view="${escapeAttr(url)}" ${!url ? "disabled":""}>View</button>
             <a href="${escapeAttr(url)}" download style="text-decoration:none;">
-              <button ${url ? "" : "disabled"}>Download</button>
+              <button ${!url ? "disabled":""}>Download</button>
             </a>
             ${ roleIs("sndm") ? `<button class="danger" data-delbrief="${b.id}">Delete</button>` : "" }
           </div>
@@ -1185,13 +1134,15 @@ async function renderBriefs(){
 }
 
 function openViewer(url){
-  if(!url) return toast("No URL.");
+  if(!url) return toast("No URL (bucket not public or file missing).");
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
 async function markBriefRead(briefId){
-  if(briefReads.some(r=> r.brief_id===briefId && r.user_id===sessionUser.id)) return toast("Already marked read.");
-  const { error } = await supabase.from(T("brief_reads")).insert({
+  const exists = briefReads.some(r=> r.brief_id===briefId && r.user_id===sessionUser.id);
+  if(exists) return toast("Already marked read.");
+
+  const { error } = await db("brief_reads").insert({
     brief_id: briefId,
     user_id: sessionUser.id,
     read_at: new Date().toISOString()
@@ -1203,7 +1154,7 @@ async function markBriefRead(briefId){
 
 async function deleteBrief(briefId){
   if(!confirm("Delete this brief?")) return;
-  const { error } = await supabase.from(T("briefs")).delete().eq("id", briefId);
+  const { error } = await db("briefs").delete().eq("id", briefId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Brief deleted.");
   await refresh();
@@ -1216,7 +1167,7 @@ async function uploadBrief(){
   if(!file || !title) return toast("File + title required.");
 
   const storagePath = `${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}_${file.name}`;
-  const { error: upErr } = await supabase.storage.from(BRIEFS_BUCKET).upload(storagePath, file, {
+  const { error: upErr } = await supabase.storage.from("compliance_briefs").upload(storagePath, file, {
     cacheControl: "3600",
     upsert: false
   });
@@ -1224,7 +1175,7 @@ async function uploadBrief(){
 
   const desc = prompt("Brief description (what’s the point of this doc)?") || "";
 
-  const { error: insErr } = await supabase.from(T("briefs")).insert({
+  const { error: insErr } = await db("briefs").insert({
     title,
     description: desc,
     tags,
@@ -1251,7 +1202,7 @@ async function renderProjects(){
   }
 
   for(const p of projects){
-    const notes = projectNotes.filter(n=> n.project_id===p.id).slice(0,6);
+    const notes = projectNotes.filter(n=> n.project_id===p.id).slice(0,5);
     const noteHtml = notes.map(n=> `<div class="small">• ${escapeHtml(n.note)} <span class="muted">(${fmtDate(n.created_at)})</span></div>`).join("");
 
     els.projectsList.insertAdjacentHTML("beforeend", `
@@ -1286,7 +1237,7 @@ async function addProject(){
   const status = els.projStatus.value;
   if(!title) return toast("Project title required.");
 
-  const { error } = await supabase.from(T("rcm_projects")).insert({
+  const { error } = await db("rcm_projects").insert({
     owner_user_id: sessionUser.id,
     title,
     status,
@@ -1302,9 +1253,8 @@ async function addProjectNote(projectId){
   const note = prompt("Progress note:");
   if(!note) return;
 
-  const { error } = await supabase.from(T("rcm_project_notes")).insert({
+  const { error } = await db("rcm_project_notes").insert({
     project_id: projectId,
-    owner_user_id: sessionUser.id,
     note,
     created_at: new Date().toISOString()
   });
@@ -1315,8 +1265,8 @@ async function addProjectNote(projectId){
 
 async function deleteProject(projectId){
   if(!confirm("Delete this project?")) return;
-  await supabase.from(T("rcm_project_notes")).delete().eq("project_id", projectId).eq("owner_user_id", sessionUser.id);
-  const { error } = await supabase.from(T("rcm_projects")).delete().eq("id", projectId).eq("owner_user_id", sessionUser.id);
+  await db("rcm_project_notes").delete().eq("project_id", projectId);
+  const { error } = await db("rcm_projects").delete().eq("id", projectId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Project deleted.");
   await refresh();
@@ -1343,7 +1293,7 @@ async function renderTeams(){
         <td class="small">${escapeHtml(memberText || "—")}</td>
         <td>
           <div class="row">
-            <input type="text" data-addmembername="${t.id}" placeholder="Display name"/>
+            <input type="text" data-addmemberid="${t.id}" placeholder="user_id"/>
             <select data-addmemberrole="${t.id}">
               <option value="IC">IC</option>
               <option value="TRC">TRC</option>
@@ -1362,27 +1312,17 @@ async function renderTeams(){
   document.querySelectorAll("[data-addmemberbtn]").forEach(btn=>{
     btn.onclick = async ()=>{
       const teamId = btn.dataset.addmemberbtn;
-      const nameInput = document.querySelector(`[data-addmembername="${teamId}"]`);
+      const idInput = document.querySelector(`[data-addmemberid="${teamId}"]`);
       const roleSel = document.querySelector(`[data-addmemberrole="${teamId}"]`);
-      const displayName = (nameInput.value||"").trim();
+      const userId = (idInput.value||"").trim();
       const roleLabel = roleSel.value;
-      if(!displayName) return toast("Display name required.");
-
-      // Create a profile for the member (staff role by default)
-      const userId = crypto.randomUUID();
-      await supabase.from(T("profiles")).upsert({
-        user_id: userId,
-        display_name: displayName,
-        role: "staff"
-      }, { onConflict: "user_id" });
-
-      const { error } = await supabase.from(T("team_members")).insert({
+      if(!userId) return toast("user_id required.");
+      const { error } = await db("team_members").insert({
         team_id: teamId,
         user_id: userId,
         role_label: roleLabel
       });
       if(error){ console.error(error); return toast(error.message); }
-      nameInput.value = "";
       toast("Member added.");
       await refresh();
     };
@@ -1392,8 +1332,8 @@ async function renderTeams(){
     btn.onclick = async ()=>{
       if(!confirm("Delete this team?")) return;
       const teamId = btn.dataset.delteam;
-      await supabase.from(T("team_members")).delete().eq("team_id", teamId);
-      const { error } = await supabase.from(T("teams")).delete().eq("id", teamId);
+      await db("team_members").delete().eq("team_id", teamId);
+      const { error } = await db("teams").delete().eq("id", teamId);
       if(error){ console.error(error); return toast(error.message); }
       toast("Team deleted.");
       await refresh();
@@ -1406,10 +1346,7 @@ async function createTeam(){
   const rcmUserId = els.teamRcmUser.value;
   if(!name || !rcmUserId) return toast("Team name + RCM required.");
 
-  const { error } = await supabase.from(T("teams")).insert({
-    name,
-    rcm_user_id: rcmUserId
-  });
+  const { error } = await db("teams").insert({ name, rcm_user_id: rcmUserId });
   if(error){ console.error(error); return toast(error.message); }
   els.teamName.value = "";
   toast("Team created.");
@@ -1443,10 +1380,10 @@ async function renderAdminTasks(){
     btn.onclick = async ()=>{
       if(!confirm("Delete this task?")) return;
       const id = btn.dataset.deltask;
-      await supabase.from(T("task_assignments")).delete().eq("task_id", id);
-      await supabase.from(T("brief_task_links")).delete().eq("task_id", id);
-      await supabase.from(T("task_completions")).delete().eq("task_id", id);
-      const { error } = await supabase.from(T("compliance_tasks")).delete().eq("id", id);
+      await db("task_assignments").delete().eq("task_id", id);
+      await db("brief_task_links").delete().eq("task_id", id);
+      await db("task_completions").delete().eq("task_id", id);
+      const { error } = await db("compliance_tasks").delete().eq("id", id);
       if(error){ console.error(error); return toast(error.message); }
       toast("Task deleted.");
       await refresh();
@@ -1466,7 +1403,7 @@ async function createTask(){
 
   if(!title) return toast("Task title required.");
 
-  const { error } = await supabase.from(T("compliance_tasks")).insert({
+  const { error } = await db("compliance_tasks").insert({
     team_id: teamId,
     year, quarter,
     title,
@@ -1494,14 +1431,14 @@ function renderGuidance(){
   } else if(roleIs("rcm")){
     els.guidanceBox.innerHTML = `
       • Execute your quarter task list: complete items and tag staff where needed.<br/>
-      • Use briefs: mark read & understood.<br/>
-      • Maintain your project log: short notes, blockers, outcomes.
+      • Use briefs: record read/understood and link to tasks if SNDM asks.<br/>
+      • Maintain your own project log: short notes, blockers, and outcomes.
     `;
   } else {
     els.guidanceBox.innerHTML = `
       • Use Briefing Hub as source of truth.<br/>
       • Mark briefs read & understood.<br/>
-      • (Later) tasks will be assigned directly to you. For now, enjoy the calm.
+      • (Later) You’ll see tasks assigned directly to you. For now, enjoy the quiet.
     `;
   }
 }
@@ -1513,6 +1450,7 @@ function renderSnapshot(){
 
   let list = tasks.slice();
   if(teamId !== "all") list = list.filter(t=> t.team_id===teamId);
+
   if(roleIs("rcm")){
     const myTeamIds = teams.filter(t=> t.rcm_user_id === sessionUser.id).map(t=> t.id);
     list = list.filter(t=> myTeamIds.includes(t.team_id));
@@ -1526,7 +1464,7 @@ function renderSnapshot(){
     <div>Period: <b>${year} Q${q}</b></div>
     <div>Tasks: <b>${total}</b> | Open: <b>${open}</b> | Completed: <b>${done}</b></div>
     <div class="muted" style="margin-top:6px;">
-      Team scope: <b>${teamId==="all" ? "All teams" : teamName(teamId)}</b>
+      Scope: <b>${teamId==="all" ? "All teams" : teamName(teamId)}</b>
     </div>
   `;
 }
@@ -1543,14 +1481,58 @@ async function refresh(){
   await renderAdminTasks();
 }
 
-// Wire UI
-function wireUI(){
-  els.enterBtn.onclick = enterWithIdentity;
+function startAutoRefresh(){
+  stopAutoRefresh();
+  refreshTimer = setInterval(async ()=>{
+    // avoid hammering when not visible
+    if(document.hidden) return;
+    await refresh();
+  }, 10000);
+}
+function stopAutoRefresh(){
+  if(refreshTimer){ clearInterval(refreshTimer); refreshTimer = null; }
+}
 
-  els.switchUserBtn.onclick = ()=>{
-    clearIdentity();
-    showIdentityCard();
-  };
+async function boot(){
+  const { data: sess } = await supabase.auth.getSession();
+  sessionUser = sess?.session?.user || null;
+
+  if(!sessionUser){
+    stopAutoRefresh();
+    els.app.classList.add("hide");
+    els.authCard.classList.remove("hide");
+    els.signOut.style.display = "none";
+    els.userPill.textContent = "Not signed in";
+    return;
+  }
+
+  profile = await ensureProfile();
+  if(!profile){
+    // keep them on auth card so they don’t smash random buttons and blame you.
+    stopAutoRefresh();
+    els.app.classList.add("hide");
+    els.authCard.classList.remove("hide");
+    return;
+  }
+
+  els.authCard.classList.add("hide");
+  els.app.classList.remove("hide");
+  els.signOut.style.display = "";
+  els.userPill.textContent = `${profile.display_name || sessionUser.email} (${profile.role})`;
+
+  enforceRoleUI();
+  initYearQuarter();
+  renderGuidance();
+
+  await refresh();
+  setTab("compliance");
+  startAutoRefresh();
+}
+
+function wireUI(){
+  els.signIn.onclick = signIn;
+  els.magic.onclick = sendMagicLink;
+  els.signOut.onclick = signOut;
 
   els.refreshBtn.onclick = refresh;
   els.jumpComplianceBtn.onclick = ()=> setTab("compliance");
@@ -1559,7 +1541,7 @@ function wireUI(){
   els.yearSel.onchange = refresh;
   els.qSel.onchange = refresh;
   els.teamSel.onchange = async ()=>{
-    rebuildStaffSelector();
+    await rebuildStaffSelector();
     await refresh();
   };
   els.staffSel.onchange = renderTasks;
@@ -1579,32 +1561,12 @@ function wireUI(){
   els.addProjBtn.onclick = addProject;
 }
 
-async function boot(){
-  wireUI();
-
-  // Load stored identity if present
-  const id = loadIdentity();
-  if(id && id.user_id && id.display_name && id.role){
-    sessionUser = { id: id.user_id };
-    profile = { user_id: id.user_id, display_name: id.display_name, role: id.role };
-
-    els.identityCard.classList.add("hide");
-    els.app.classList.remove("hide");
-    els.userPill.textContent = `${profile.display_name} (${profile.role})`;
-    enforceRoleUI();
-    initYearQuarter();
-
-    // Ensure profile exists server-side (helpful for filters)
-    await upsertProfile();
-
-    await refresh();
-    setTab("compliance");
-  } else {
-    showIdentityCard();
-  }
-}
-
+wireUI();
 boot();
+
+supabase.auth.onAuthStateChange((_event,_session)=> {
+  boot();
+});
 </script>
 </body>
 </html>
