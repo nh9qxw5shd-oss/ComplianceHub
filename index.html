@@ -63,6 +63,16 @@
       background: rgba(255,255,255,.06);
     }
 
+header button.pill{
+  color: #f9fafb;              /* force light text */
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.18);
+}
+
+header button.pill:hover{
+  background: rgba(255,255,255,.14);
+}
+
     .wrap{
       max-width: 1280px;
       margin: 18px auto;
@@ -335,7 +345,8 @@
     <div class="tabs" id="tabs">
       <div class="tab active" data-tab="compliance">Compliance</div>
       <div class="tab" data-tab="briefs">Briefing Hub</div>
-      <div class="tab" data-tab="projects">RCM Projects</div>
+      <div class="tab" data-tab="projects">Projects</div>
+      <div class="tab" data-tab="people" id="peopleTab">People (SNDM)</div>
       <div class="tab" data-tab="teams" id="teamsTab">Team Builder (SNDM)</div>
       <div class="tab" data-tab="admin" id="adminTab">Task Admin (SNDM)</div>
     </div>
@@ -427,7 +438,37 @@
           </p>
         </div>
 
-        <!-- TEAM BUILDER -->
+        
+<!-- PEOPLE MANAGER -->
+<div class="card hide" id="tab-people">
+  <h2>People (SNDM)</h2>
+  <p class="small" style="margin-top:-6px;">
+    Manage profiles and team membership here so nobody needs to poke the backend with a stick.
+  </p>
+
+  <div class="row" style="margin-bottom:10px;">
+    <button class="primary" id="reloadPeopleBtn">Reload people</button>
+    <button id="createUserBtn">Create user (Auth)</button>
+    <span class="small muted">Create user requires an Edge Function (service role). See SQL/steps below.</span>
+  </div>
+
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th style="width:220px;">User ID</th>
+          <th style="width:120px;">Role</th>
+          <th style="width:220px;">Team</th>
+          <th style="width:220px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="peopleTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TEAM BUILDER -->
         <div class="card hide" id="tab-teams">
           <h2>Team Builder (SNDM)</h2>
           <div class="row">
@@ -460,14 +501,40 @@
           </p>
 
           <div class="row">
-            <input id="taskTitle" type="text" placeholder="Task title"/>
-            <input id="taskTags" type="text" placeholder="Tags (comma)"/>
-            <input id="taskDue" type="text" placeholder="Due date (YYYY-MM-DD)"/>
-            <button class="primary" id="createTaskBtn">Create task</button>
+            <input id="taskTitle" type="text" placeholder="Task title (required)"/>
+
+            <select id="taskTargetType" title="Where does this task apply?">
+              <option value="team_one" selected>Specific team</option>
+              <option value="team_all">All teams</option>
+              <option value="person_one">Specific person</option>
+              <option value="person_all">All people</option>
+            </select>
+
+            <select id="taskTargetTeam" title="Team target"></select>
+            <select id="taskTargetPerson" title="Person target"></select>
+
+            <select id="taskOwner" title="Owner (optional)"></select>
+            <select id="taskDueMode" title="Scheduling mode">
+              <option value="quarter" selected>Quarter-based</option>
+              <option value="date">Specific date</option>
+            </select>
+
+            <select id="taskPeriodYear" title="Year (for quarter-based)"></select>
+            <select id="taskPeriodQuarter" title="Quarter (for quarter-based)">
+              <option value="1">Q1</option>
+              <option value="2">Q2</option>
+              <option value="3">Q3</option>
+              <option value="4">Q4</option>
+            </select>
+
+            <input id="taskDueDate" type="date" title="Due date (for specific date)" class="hide"/>
+<input id="taskTags" type="text" placeholder="Tags (optional, comma)"/>
+
+            <button class="primary" id="createTaskBtn">Create task(s)</button>
           </div>
 
           <div class="small" style="margin-top:8px;">
-            Task is created against selected Team + selected Year/Quarter. Tag staff from the Compliance table.
+            Choose scheduling: quarter-based (select Year + Quarter) or specific date (calendar). If you pick a date, the task is automatically filed into the matching quarter.
           </div>
 
           <div style="margin-top:10px; overflow:auto;">
@@ -499,20 +566,8 @@
             <div class="small muted">This is V1. It’s meant to run the basics, not solve the human condition.</div>
           </div>
         </div>
-
-        <div class="card">
-          <h2>What you should be doing</h2>
-          <div class="small" id="guidanceBox">- Loading role guidance…</div>
-        </div>
-
-        <div class="card">
-          <h2>Quick Actions</h2>
-          <div class="row">
-            <button id="refreshBtn">Refresh</button>
-            <button id="jumpComplianceBtn">Compliance</button>
-            <button id="jumpBriefsBtn">Briefs</button>
-          </div>
-          <p class="small" style="margin-top:10px;">
+</div>
+<p class="small" style="margin-top:10px;">
             Auto-refresh runs every 10 seconds once signed in.
           </p>
         </div>
@@ -533,18 +588,80 @@
  * and do NOT touch other apps.
  */
 const APP_SCHEMA = "compliance";
-const SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
+const RAW_SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co"; // keep your configured value
+const SUPABASE_URL = (() => {
+  let u = (RAW_SUPABASE_URL || "").trim();
+  // Allow users to paste just the host without scheme
+  if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+  // Strip trailing slash
+  u = u.replace(/\/+$/, "");
+  // Basic sanity check: Supabase project URLs normally end with ".supabase.co"
+  try {
+    const host = new URL(u).hostname || "";
+    if (!host.endsWith(".supabase.co")) {
+      console.error("SUPABASE_URL looks wrong:", u);
+      // We don't hard-stop, but we surface it clearly
+      window.__SUPABASE_URL_WARNING__ = "Project URL doesn’t look like a Supabase URL (should end with .supabase.co). Check Settings → API → Project URL.";
+    }
+  } catch (e) {
+    console.error("SUPABASE_URL is not a valid URL:", u, e);
+    window.__SUPABASE_URL_WARNING__ = "Project URL is not a valid URL. Check Settings → API → Project URL.";
   }
-});
+  return u;
+})();
+
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
+
+const SupabaseLib = (window.supabase && window.supabase.createClient) ? window.supabase
+  : (window.supabaseJs && window.supabaseJs.createClient) ? window.supabaseJs
+  : (window.supabasejs && window.supabasejs.createClient) ? window.supabasejs
+  : (window.Supabase && window.Supabase.createClient) ? window.Supabase
+  : null;
+
+let sb = null;
+if(!SupabaseLib){
+  console.error("Supabase JS not loaded. Check the CDN <script> tag, CSP, or network filtering.");
+  // Fail loudly so you don't click buttons into the void.
+  alert("Supabase JS failed to load. Check network/CSP filtering (see console).");
+} else {
+  sb = SupabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
+}
 
 // Convenience: schema-qualified table handle
-const db = (table) => supabase.schema(APP_SCHEMA).from(table);
+const db = (table) => sb.schema(APP_SCHEMA).from(table);
+
+async function ensureSchemaExposed(){
+  // Supabase API only exposes schemas listed in Settings → API → Exposed schemas.
+  // If APP_SCHEMA isn't exposed, PostgREST returns 406 with PGRST106.
+  if(!sb) return false;
+  if(APP_SCHEMA === "public") return true;
+
+  // Probe the schema without assuming any table exists yet.
+  const probe = await sb.schema(APP_SCHEMA).from("profiles").select("user_id").limit(1);
+  const err = probe?.error;
+  if(err && (err.code === "PGRST106" || String(err.message||"").includes("schema must be one of"))){
+    console.error("Schema not exposed:", err);
+    const msg = `Backend schema '${APP_SCHEMA}' is not exposed to the API. In Supabase: Settings → API → Exposed schemas → add '${APP_SCHEMA}', then reload.`;
+    toast(msg);
+    const hint = document.getElementById("schemaHint");
+    if(hint){
+      hint.innerHTML = `
+        <span class="dot bad"></span>
+        <b>Fix needed:</b> Your Supabase API is not exposing the <code>${APP_SCHEMA}</code> schema.<br/>
+        Go to <b>Supabase → Settings → API → Exposed schemas</b> and add <code>${APP_SCHEMA}</code> (comma-separated).<br/>
+        Then refresh this page.
+      `;
+    }
+    return false;
+  }
+  return true;
+}
 
 const els = {
   authCard: document.getElementById("authCard"),
@@ -568,25 +685,24 @@ const els = {
   tabs: document.getElementById("tabs"),
   teamsTab: document.getElementById("teamsTab"),
   adminTab: document.getElementById("adminTab"),
+  peopleTab: document.getElementById("peopleTab"),
 
   tasksTbody: document.getElementById("tasksTbody"),
   briefsTbody: document.getElementById("briefsTbody"),
   projectsList: document.getElementById("projectsList"),
   teamsTbody: document.getElementById("teamsTbody"),
   adminTasksTbody: document.getElementById("adminTasksTbody"),
+  peopleTbody: document.getElementById("peopleTbody"),
+
+  reloadPeopleBtn: document.getElementById("reloadPeopleBtn"),
+  createUserBtn: document.getElementById("createUserBtn"),
 
   actualBar: document.getElementById("actualBar"),
   progressText: document.getElementById("progressText"),
   expectedText: document.getElementById("expectedText"),
 
   snapshotText: document.getElementById("snapshotText"),
-  guidanceBox: document.getElementById("guidanceBox"),
-
-  refreshBtn: document.getElementById("refreshBtn"),
-  jumpComplianceBtn: document.getElementById("jumpComplianceBtn"),
-  jumpBriefsBtn: document.getElementById("jumpBriefsBtn"),
-
-  // Brief upload
+// Brief upload
   briefUploadRow: document.getElementById("briefUploadRow"),
   briefFile: document.getElementById("briefFile"),
   briefTitle: document.getElementById("briefTitle"),
@@ -596,8 +712,17 @@ const els = {
   // Admin task create
   taskTitle: document.getElementById("taskTitle"),
   taskTags: document.getElementById("taskTags"),
-  taskDue: document.getElementById("taskDue"),
+  taskDueMode: document.getElementById("taskDueMode"),
+  taskPeriodYear: document.getElementById("taskPeriodYear"),
+  taskPeriodQuarter: document.getElementById("taskPeriodQuarter"),
+  taskDueDate: document.getElementById("taskDueDate"),
   createTaskBtn: document.getElementById("createTaskBtn"),
+
+  // Admin task targeting
+  taskTargetType: document.getElementById("taskTargetType"),
+  taskTargetTeam: document.getElementById("taskTargetTeam"),
+  taskTargetPerson: document.getElementById("taskTargetPerson"),
+  taskOwner: document.getElementById("taskOwner"),
 
   // Teams
   teamName: document.getElementById("teamName"),
@@ -612,6 +737,17 @@ const els = {
   toast: document.getElementById("toast"),
 };
 
+
+// ---------- Debug helpers (so clicks don't "do nothing") ----------
+window.addEventListener("error", (e)=> {
+  try { toast("JS error: " + (e.message || "unknown")); } catch(_) {}
+  console.error("JS error", e.error || e);
+});
+window.addEventListener("unhandledrejection", (e)=> {
+  try { toast("Async error: " + (e.reason?.message || String(e.reason || "unknown"))); } catch(_) {}
+  console.error("Unhandled promise rejection", e.reason);
+});
+
 let sessionUser = null;
 let profile = null; // {user_id, display_name, role}
 let teams = [];
@@ -624,6 +760,8 @@ let briefReads = [];
 let briefLinks = [];
 let projects = [];
 let projectNotes = [];
+let projectCollabs = [];
+let peopleProfiles = [];
 
 let refreshTimer = null;
 
@@ -632,6 +770,11 @@ function toast(msg){
   els.toast.style.display = "block";
   clearTimeout(window.__toastTimer);
   window.__toastTimer = setTimeout(()=> els.toast.style.display="none", 2600);
+}
+
+// Surface common config mistakes early
+if (window.__SUPABASE_URL_WARNING__) {
+  setTimeout(()=> toast(window.__SUPABASE_URL_WARNING__), 50);
 }
 
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -665,7 +808,7 @@ function roleIn(arr){ return arr.includes(profile?.role || ""); }
 
 function setTab(tab){
   document.querySelectorAll(".tab").forEach(t=> t.classList.toggle("active", t.dataset.tab===tab));
-  ["compliance","briefs","projects","teams","admin"].forEach(k=>{
+  ["compliance","briefs","projects","people","teams","admin"].forEach(k=>{
     const el = document.getElementById("tab-"+k);
     if(el) el.classList.toggle("hide", k!==tab);
   });
@@ -673,29 +816,45 @@ function setTab(tab){
 
 function enforceRoleUI(){
   els.rolePill.textContent = `Role: ${profile?.role || "-"}`;
+  els.peopleTab.style.display = roleIs("sndm") ? "" : "none";
   els.teamsTab.style.display = roleIs("sndm") ? "" : "none";
   els.adminTab.style.display = roleIs("sndm") ? "" : "none";
 
   els.briefUploadRow.style.display = roleIs("sndm") ? "flex" : "none";
-  document.querySelector('[data-tab="projects"]').style.display = roleIn(["rcm","sndm"]) ? "" : "none";
+  document.querySelector('[data-tab="projects"]').style.display = "";
   document.querySelector('[data-tab="compliance"]').style.display = roleIn(["rcm","sndm","staff"]) ? "" : "none";
   document.querySelector('[data-tab="briefs"]').style.display = roleIn(["rcm","sndm","staff"]) ? "" : "none";
 }
 
 async function signIn(){
-  const email = els.email.value.trim();
-  const password = els.pass.value;
+  if(!sb) return toast("Supabase client not initialised. If you're on GitHub Pages, check the CDN isn't blocked.");
+  const email = (els.email.value||"").trim();
+  const password = els.pass.value || "";
   if(!email || !password) return toast("Email + password required.");
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if(error) return toast(error.message);
-  toast("Signed in.");
+
+  els.signIn.disabled = true;
+  els.signIn.textContent = "Signing in…";
+
+  try{
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if(error) return toast(error.message);
+
+    toast("Signed in.");
+    await boot(); // force UI transition immediately
+  } catch(err){
+    console.error(err);
+    toast(err?.message || String(err));
+  } finally {
+    els.signIn.disabled = false;
+    els.signIn.textContent = "Sign in";
+  }
 }
 
 async function sendMagicLink(){
   const email = els.email.value.trim();
   if(!email) return toast("Enter your email first.");
   // IMPORTANT: set the redirect URL in Supabase Auth settings to your GitHub Pages URL.
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.location.href }
   });
@@ -704,8 +863,16 @@ async function sendMagicLink(){
 }
 
 async function signOut(){
-  await supabase.auth.signOut();
-  stopAutoRefresh();
+  if(!sb) {
+    sessionUser = null;
+    profile = null;
+    els.app.classList.add("hide");
+    els.authCard.classList.remove("hide");
+    els.signOut.style.display = "none";
+    els.userPill.textContent = "Not signed in";
+    return toast("Signed out.");
+  }
+  await sb.auth.signOut();
   sessionUser = null;
   profile = null;
   els.app.classList.add("hide");
@@ -731,9 +898,28 @@ function initYearQuarter(){
   els.qSel.value = String(q);
 }
 
+function updateTaskDueModeUI(){
+  if(!els.taskDueMode) return;
+  const mode = (els.taskDueMode.value || "quarter");
+  const isQuarter = (mode === "quarter");
+  els.taskPeriodYear.classList.toggle("hide", !isQuarter);
+  els.taskPeriodQuarter.classList.toggle("hide", !isQuarter);
+  els.taskDueDate.classList.toggle("hide", isQuarter);
+}
+
+function syncTaskAdminPeriodPickers(){
+  if(!els.taskPeriodYear || !els.yearSel) return;
+  // Copy year options from the main selector
+  els.taskPeriodYear.innerHTML = els.yearSel.innerHTML;
+  els.taskPeriodYear.value = els.yearSel.value;
+  els.taskPeriodQuarter.value = els.qSel.value;
+  updateTaskDueModeUI();
+}
+
+
 async function ensureProfile(){
   // Loads profile row, and creates one if missing (role defaults to 'staff' until an SNDM grants/changes it).
-  const { data: sess } = await supabase.auth.getSession();
+  const { data: sess } = await sb.auth.getSession();
   sessionUser = sess?.session?.user || null;
   if(!sessionUser) return null;
 
@@ -803,19 +989,25 @@ async function loadCore(){
   const t8 = await db("brief_task_links").select("*");
   briefLinks = t8.data || [];
 
-  if(roleIn(["rcm","sndm"])){
-    const p = await db("rcm_projects")
-      .select("*")
-      .eq("owner_user_id", sessionUser.id)
-      .order("created_at",{ascending:false});
-    projects = p.data || [];
+// Projects + notes (everyone can have projects; visibility: owner, collaborator, or SNDM sees all)
+const p = await db("rcm_projects").select("*").order("created_at",{ascending:false});
+projects = p.data || [];
 
-    const n = await db("rcm_project_notes").select("*");
-    projectNotes = n.data || [];
-  } else {
-    projects = [];
-    projectNotes = [];
-  }
+const n = await db("rcm_project_notes").select("*");
+projectNotes = n.data || [];
+
+// Collaborators
+const c = await db("project_collaborators").select("*");
+projectCollabs = c.data || [];
+
+// People (SNDM only)
+if(roleIs("sndm")){
+  const ppl = await db("profiles").select("user_id, display_name, role").order("display_name",{ascending:true});
+  peopleProfiles = ppl.data || [];
+} else {
+  peopleProfiles = [];
+}
+
 }
 
 function buildSelectors(){
@@ -844,13 +1036,16 @@ function buildSelectors(){
   const q = Number(els.qSel.value);
   const { start, end } = getQuarterWindow(year, q);
   els.periodPill.textContent = `Period: ${year} Q${q} (${fmtDate(start)} to ${fmtDate(new Date(end.getTime()-86400000))})`;
+
+  // Keep Task Admin scheduling pickers aligned
+  syncTaskAdminPeriodPickers();
+
 }
 
 async function loadRcmUsersForTeamBuilder(){
   const { data, error } = await db("profiles")
     .select("user_id, display_name, role")
-    .eq("role","rcm")
-    .order("display_name",{ascending:true});
+    .in("role",["rcm","staff"]).order("display_name",{ascending:true});
   if(error) { console.error(error); return; }
 
   els.teamRcmUser.innerHTML = "";
@@ -860,6 +1055,57 @@ async function loadRcmUsersForTeamBuilder(){
     opt.textContent = p.display_name || p.user_id;
     els.teamRcmUser.appendChild(opt);
   });
+}
+
+async function buildAdminTargetSelectors(){
+  if(!roleIs("sndm")) return;
+  // Teams
+  els.taskTargetTeam.innerHTML = "";
+  teams.forEach(t=>{
+    const opt=document.createElement("option");
+    opt.value=t.id;
+    opt.textContent=t.name;
+    els.taskTargetTeam.appendChild(opt);
+  });
+
+  // People (profiles)
+  db("profiles").select("user_id, display_name, role").order("display_name",{ascending:true}).then(({data, error})=>{
+    if(error){ console.error(error); return; }
+    const list=data||[];
+
+    // Target person dropdown
+    els.taskTargetPerson.innerHTML = "";
+    list.forEach(p=>{
+      const opt=document.createElement("option");
+      opt.value=p.user_id;
+      opt.textContent=`${p.display_name || p.user_id} (${p.role})`;
+      els.taskTargetPerson.appendChild(opt);
+    });
+
+    // Owner dropdown (optional)
+    els.taskOwner.innerHTML = "";
+    const none=document.createElement("option");
+    none.value="";
+    none.textContent="Owner (optional)";
+    els.taskOwner.appendChild(none);
+    list.forEach(p=>{
+      const opt=document.createElement("option");
+      opt.value=p.user_id;
+      opt.textContent=`${p.display_name || p.user_id} (${p.role})`;
+      els.taskOwner.appendChild(opt);
+    });
+
+    // Initial visibility
+    syncAdminTargetVisibility();
+  });
+}
+
+function syncAdminTargetVisibility(){
+  if(!roleIs("sndm")) return;
+  const t = els.taskTargetType.value;
+  const showTeam = (t==="team_one" || t==="team_all");
+  els.taskTargetTeam.style.display = showTeam ? "" : "none";
+  els.taskTargetPerson.style.display = showTeam ? "none" : "";
 }
 
 async function rebuildStaffSelector(){
@@ -923,7 +1169,7 @@ async function resolveNames(userIds){
 
 function makeFileUrl(storagePath){
   // bucket = compliance_briefs (public). If you make it private, swap to createSignedUrl.
-  const { data } = supabase.storage.from("compliance_briefs").getPublicUrl(storagePath);
+  const { data } = sb.storage.from("compliance_briefs").getPublicUrl(storagePath);
   return data?.publicUrl || "";
 }
 
@@ -1167,7 +1413,7 @@ async function uploadBrief(){
   if(!file || !title) return toast("File + title required.");
 
   const storagePath = `${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}_${file.name}`;
-  const { error: upErr } = await supabase.storage.from("compliance_briefs").upload(storagePath, file, {
+  const { error: upErr } = await sb.storage.from("compliance_briefs").upload(storagePath, file, {
     cacheControl: "3600",
     upsert: false
   });
@@ -1194,14 +1440,25 @@ async function uploadBrief(){
 
 async function renderProjects(){
   els.projectsList.innerHTML = "";
-  if(!roleIn(["rcm","sndm"])) return;
 
-  if(!projects.length){
+  // Visible projects: owner, collaborator, or SNDM sees all
+  const visible = roleIs("sndm")
+    ? projects.slice()
+    : projects.filter(p => (p.owner_user_id === sessionUser.id) || projectCollabs.some(c=> c.project_id===p.id && c.user_id===sessionUser.id));
+
+  if(!visible.length){
     els.projectsList.innerHTML = `<div class="card"><div class="small muted">No projects yet.</div></div>`;
     return;
   }
 
-  for(const p of projects){
+  
+const projectUserIds = [...new Set([
+  ...visible.map(p=> p.owner_user_id).filter(Boolean),
+  ...projectCollabs.filter(c=> visible.some(p=>p.id===c.project_id)).map(c=> c.user_id)
+])];
+const projNameMap = await resolveNames(projectUserIds);
+
+for(const p of visible){
     const notes = projectNotes.filter(n=> n.project_id===p.id).slice(0,5);
     const noteHtml = notes.map(n=> `<div class="small">• ${escapeHtml(n.note)} <span class="muted">(${fmtDate(n.created_at)})</span></div>`).join("");
 
@@ -1211,9 +1468,13 @@ async function renderProjects(){
           <div>
             <div><b>${escapeHtml(p.title)}</b></div>
             <div class="small muted">Status: ${escapeHtml(p.status || "")}</div>
+            <div class="small muted">Owner: <b>${escapeHtml(projNameMap[p.owner_user_id] || p.owner_user_id || "—")}</b></div>
+            <div class="small muted">Collaborators: ${escapeHtml(projectCollabs.filter(c=>c.project_id===p.id).map(c=> projNameMap[c.user_id] || c.user_id).join(", ") || "—")}</div>
           </div>
           <div class="row">
             <button data-note="${p.id}">Add note</button>
+            <button data-addcollab="${p.id}">Add collaborator</button>
+            <button data-remcollab="${p.id}">Remove collaborator</button>
             <button class="danger" data-delproj="${p.id}">Delete</button>
           </div>
         </div>
@@ -1230,6 +1491,15 @@ async function renderProjects(){
   document.querySelectorAll("[data-delproj]").forEach(btn=>{
     btn.onclick = async ()=> deleteProject(btn.dataset.delproj);
   });
+
+
+document.querySelectorAll("[data-addcollab]").forEach(btn=>{
+  btn.onclick = async ()=> addProjectCollaborator(btn.dataset.addcollab);
+});
+document.querySelectorAll("[data-remcollab]").forEach(btn=>{
+  btn.onclick = async ()=> removeProjectCollaborator(btn.dataset.remcollab);
+});
+
 }
 
 async function addProject(){
@@ -1260,6 +1530,45 @@ async function addProjectNote(projectId){
   });
   if(error){ console.error(error); return toast(error.message); }
   toast("Note added.");
+  await refresh();
+}
+
+
+async function addProjectCollaborator(projectId){
+  // Only owner or SNDM should do this
+  const proj = projects.find(p=> p.id===projectId);
+  if(!proj) return toast("Project not found.");
+  if(!(roleIs("sndm") || proj.owner_user_id===sessionUser.id)) return toast("Not allowed.");
+
+  const { data: ppl, error } = await db("profiles").select("user_id, display_name, role").order("display_name",{ascending:true});
+  if(error) { console.error(error); return toast(error.message); }
+  const list = (ppl||[]).map(p=> `${p.display_name || p.user_id} (${p.role}) = ${p.user_id}`).join("\n");
+  const picked = prompt("Paste the user_id to add as collaborator:\n\n"+list);
+  if(!picked) return;
+
+  const userId = picked.trim();
+  const { error: insErr } = await db("project_collaborators").insert({ project_id: projectId, user_id: userId });
+  if(insErr){ console.error(insErr); return toast(insErr.message || "Failed"); }
+  toast("Collaborator added.");
+  await refresh();
+}
+
+async function removeProjectCollaborator(projectId){
+  const proj = projects.find(p=> p.id===projectId);
+  if(!proj) return toast("Project not found.");
+  if(!(roleIs("sndm") || proj.owner_user_id===sessionUser.id)) return toast("Not allowed.");
+
+  const current = projectCollabs.filter(c=> c.project_id===projectId).map(c=> c.user_id);
+  if(!current.length) return toast("No collaborators.");
+  const nameMap = await resolveNames(current);
+  const list = current.map(id=> `${nameMap[id] || id} = ${id}`).join("\n");
+  const picked = prompt("Paste the user_id to remove:\n\n"+list);
+  if(!picked) return;
+
+  const userId = picked.trim();
+  const { error: delErr } = await db("project_collaborators").delete().eq("project_id", projectId).eq("user_id", userId);
+  if(delErr){ console.error(delErr); return toast(delErr.message || "Failed"); }
+  toast("Collaborator removed.");
   await refresh();
 }
 
@@ -1353,6 +1662,128 @@ async function createTeam(){
   await refresh();
 }
 
+
+async function renderPeople(){
+  if(!roleIs("sndm")) return;
+  els.peopleTbody.innerHTML = "";
+
+  const teamMap = {};
+  teams.forEach(t=> teamMap[t.id]=t.name);
+
+  // Build current membership lookup (one primary team per person in V1)
+  const memberByUser = {};
+  members.forEach(m=>{
+    if(!memberByUser[m.user_id]) memberByUser[m.user_id]=m; // first seen
+  });
+
+  for(const p of peopleProfiles){
+    const m = memberByUser[p.user_id];
+    const teamNameTxt = m ? (teamMap[m.team_id] || m.team_id) : "Unassigned";
+
+    // Team dropdown
+    const teamOpts = [`<option value="">Unassigned</option>`].concat(
+      teams.map(t=> `<option value="${escapeAttr(t.id)}" ${m && m.team_id===t.id ? "selected":""}>${escapeHtml(t.name)}</option>`)
+    ).join("");
+
+    els.peopleTbody.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td>
+          <input type="text" data-pname="${escapeAttr(p.user_id)}" value="${escapeAttr(p.display_name||"")}" placeholder="Display name"/>
+        </td>
+        <td class="small">${escapeHtml(p.user_id)}</td>
+        <td>
+          <select data-prole="${escapeAttr(p.user_id)}">
+            <option value="sndm" ${p.role==="sndm"?"selected":""}>sndm</option>
+            <option value="rcm" ${p.role==="rcm"?"selected":""}>rcm</option>
+            <option value="staff" ${p.role==="staff"?"selected":""}>staff</option>
+          </select>
+        </td>
+        <td>
+          <select data-pteam="${escapeAttr(p.user_id)}">
+            ${teamOpts}
+          </select>
+          <div class="small muted">${escapeHtml(teamNameTxt)}</div>
+        </td>
+        <td class="row">
+          <button data-psave="${escapeAttr(p.user_id)}">Save</button>
+          <button class="danger" data-premoveteam="${escapeAttr(p.user_id)}">Remove team</button>
+        </td>
+      </tr>
+    `);
+  }
+
+  document.querySelectorAll("[data-psave]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const uid = btn.dataset.psave;
+      const nameEl = document.querySelector(`[data-pname="${uid}"]`);
+      const roleEl = document.querySelector(`[data-prole="${uid}"]`);
+      const teamEl = document.querySelector(`[data-pteam="${uid}"]`);
+      await savePerson(uid, nameEl?.value||"", roleEl?.value||"staff", teamEl?.value||"");
+    };
+  });
+
+  document.querySelectorAll("[data-premoveteam]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const uid = btn.dataset.premoveteam;
+      await removePersonFromTeam(uid);
+    };
+  });
+}
+
+async function savePerson(userId, displayName, role, teamId){
+  // Update profile
+  const { error: uerr } = await db("profiles")
+    .update({ display_name: displayName.trim(), role })
+    .eq("user_id", userId);
+
+  if(uerr){ console.error(uerr); return toast(uerr.message); }
+
+  // Update team membership (simple: one row per user in V1)
+  await db("team_members").delete().eq("user_id", userId);
+
+  if(teamId){
+    const { error: merr } = await db("team_members").insert({ team_id: teamId, user_id: userId, role_label: role.toUpperCase() });
+    if(merr){ console.error(merr); return toast(merr.message); }
+  }
+
+  toast("Saved.");
+  await refresh();
+}
+
+async function removePersonFromTeam(userId){
+  const { error } = await db("team_members").delete().eq("user_id", userId);
+  if(error){ console.error(error); return toast(error.message); }
+  toast("Removed from team.");
+  await refresh();
+}
+
+// Auth user creation requires Edge Function (service role). UI calls it if configured.
+async function createAuthUser(){
+  const email = prompt("Email for new user:");
+  if(!email) return;
+  const name = prompt("Display name:");
+  const role = prompt("Role (sndm/rcm/staff):", "staff") || "staff";
+  const password = prompt("Temporary password (tell them to change it):");
+  if(!password) return;
+
+  const fnUrl = (window.COMPLIANCE_ADMIN_FN_URL || "").trim();
+  if(!fnUrl) return toast("Edge Function URL not configured. See setup notes.");
+
+  const { data: sess } = await sb.auth.getSession();
+  const jwt = sess?.session?.access_token;
+  if(!jwt) return toast("You must be signed in.");
+
+  const res = await fetch(fnUrl, {
+    method: "POST",
+    headers: { "Content-Type":"application/json", "Authorization": "Bearer "+jwt },
+    body: JSON.stringify({ email, password, display_name: name||"", role })
+  });
+  const out = await res.json().catch(()=> ({}));
+  if(!res.ok){ console.error(out); return toast(out.error || "Create user failed"); }
+  toast("User created.");
+  await refresh();
+}
+
 async function renderAdminTasks(){
   if(!roleIs("sndm")) return;
   const teamId = els.teamSel.value;
@@ -1392,56 +1823,79 @@ async function renderAdminTasks(){
 }
 
 async function createTask(){
-  const teamId = els.teamSel.value;
-  if(teamId === "all") return toast("Select a specific team to create a task.");
-  const title = els.taskTitle.value.trim();
-  const tags = els.taskTags.value.trim();
-  const due = els.taskDue.value.trim() || null;
+  if(!roleIs("sndm")) return toast("Only SNDM can create tasks (for now).");
 
-  const year = Number(els.yearSel.value);
-  const quarter = Number(els.qSel.value);
+  const title = (els.taskTitle.value||"").trim();
+  const tags = (els.taskTags.value||"").trim();
+  const targetType = els.taskTargetType.value;
+  const ownerUserId = (els.taskOwner.value||"").trim() || null;
 
-  if(!title) return toast("Task title required.");
+  const dueMode = (els.taskDueMode.value||"quarter");
+  let year = Number(els.taskPeriodYear.value || els.yearSel.value);
+  let quarter = Number(els.taskPeriodQuarter.value || els.qSel.value);
+  let due_date = null;
 
-  const { error } = await db("compliance_tasks").insert({
-    team_id: teamId,
+  if(dueMode === "date"){
+    const picked = (els.taskDueDate.value||"").trim();
+    if(!picked) return toast("Pick a due date.");
+    const d = new Date(picked + "T00:00:00Z");
+    year = d.getUTCFullYear();
+    quarter = Math.floor(d.getUTCMonth()/3)+1;
+    due_date = picked;
+  }if(!title) return toast("Task title required.");
+
+  // Build targets
+  let targets = [];
+  if(targetType === "team_one"){
+    const teamId = els.taskTargetTeam.value;
+    if(!teamId) return toast("Select a team.");
+    targets = [{ team_id: teamId, primary_user_id: null }];
+  }
+  if(targetType === "team_all"){
+    targets = teams.map(t=> ({ team_id: t.id, primary_user_id: null }));
+  }
+  if(targetType === "person_one"){
+    const uid = els.taskTargetPerson.value;
+    if(!uid) return toast("Select a person.");
+    // Find their first team membership; if none, we still create but team_id null (requires SQL change) OR park it as unassigned (team_id null).
+    const member = members.find(m=> m.user_id===uid);
+    targets = [{ team_id: member?.team_id || null, primary_user_id: uid }];
+  }
+  if(targetType === "person_all"){
+    // Everyone we know about (profiles), including unassigned.
+    const { data: ppl, error } = await db("profiles").select("user_id");
+    if(error){ console.error(error); return toast(error.message); }
+    const ids = (ppl||[]).map(p=> p.user_id);
+    targets = ids.map(uid=>{
+      const member = members.find(m=> m.user_id===uid);
+      return { team_id: member?.team_id || null, primary_user_id: uid };
+    });
+  }
+
+  // Insert tasks (one per target)
+  const rows = targets.map(t=>({
+    team_id: t.team_id, // may be null for unassigned personal tasks (SQL supports)
     year, quarter,
     title,
     tags,
-    due_date: due,
-    created_by: sessionUser.id
-  });
-  if(error){ console.error(error); return toast(error.message); }
+    due_date: due_date,
+    created_by: sessionUser.id,
+    owner_user_id: ownerUserId,
+    primary_user_id: t.primary_user_id
+  }));
+
+  const { error: insErr } = await db("compliance_tasks").insert(rows);
+  if(insErr){ console.error(insErr); return toast(insErr.message); }
 
   els.taskTitle.value = "";
   els.taskTags.value = "";
-  els.taskDue.value = "";
-  toast("Task created.");
+  els.taskDueDate.value = "";
+  els.taskDueMode.value = "quarter";
+  updateTaskDueModeUI();
+  toast(`Task(s) created: ${rows.length}`);
   await refresh();
 }
 
-function renderGuidance(){
-  if(roleIs("sndm")){
-    els.guidanceBox.innerHTML = `
-      • Set and maintain core compliance tasks per quarter.<br/>
-      • Keep team membership current (RCM parent with IC/TRC mapped).<br/>
-      • Monitor progress vs expected and intervene early (because “late panic” is not a strategy).<br/>
-      • Keep brief library clean: title + description + tags, link relevant tasks.
-    `;
-  } else if(roleIs("rcm")){
-    els.guidanceBox.innerHTML = `
-      • Execute your quarter task list: complete items and tag staff where needed.<br/>
-      • Use briefs: record read/understood and link to tasks if SNDM asks.<br/>
-      • Maintain your own project log: short notes, blockers, and outcomes.
-    `;
-  } else {
-    els.guidanceBox.innerHTML = `
-      • Use Briefing Hub as source of truth.<br/>
-      • Mark briefs read & understood.<br/>
-      • (Later) You’ll see tasks assigned directly to you. For now, enjoy the quiet.
-    `;
-  }
-}
 
 function renderSnapshot(){
   const year = Number(els.yearSel.value);
@@ -1472,11 +1926,11 @@ function renderSnapshot(){
 async function refresh(){
   await loadCore();
   buildSelectors();
-  renderGuidance();
-  renderSnapshot();
+renderSnapshot();
   await renderTasks();
   await renderBriefs();
   await renderProjects();
+  await renderPeople();
   await renderTeams();
   await renderAdminTasks();
 }
@@ -1494,7 +1948,7 @@ function stopAutoRefresh(){
 }
 
 async function boot(){
-  const { data: sess } = await supabase.auth.getSession();
+  const { data: sess } = await sb.auth.getSession();
   sessionUser = sess?.session?.user || null;
 
   if(!sessionUser){
@@ -1505,6 +1959,8 @@ async function boot(){
     els.userPill.textContent = "Not signed in";
     return;
   }
+
+  if(!(await ensureSchemaExposed())) return;
 
   profile = await ensureProfile();
   if(!profile){
@@ -1522,23 +1978,16 @@ async function boot(){
 
   enforceRoleUI();
   initYearQuarter();
-  renderGuidance();
-
-  await refresh();
+await refresh();
   setTab("compliance");
   startAutoRefresh();
 }
 
 function wireUI(){
-  els.signIn.onclick = signIn;
+  els.signIn.addEventListener("click", (e)=>{ e.preventDefault(); signIn(); });
   els.magic.onclick = sendMagicLink;
-  els.signOut.onclick = signOut;
-
-  els.refreshBtn.onclick = refresh;
-  els.jumpComplianceBtn.onclick = ()=> setTab("compliance");
-  els.jumpBriefsBtn.onclick = ()=> setTab("briefs");
-
-  els.yearSel.onchange = refresh;
+  els.signOut.addEventListener("click", (e)=>{ e.preventDefault(); signOut(); });
+els.yearSel.onchange = refresh;
   els.qSel.onchange = refresh;
   els.teamSel.onchange = async ()=>{
     await rebuildStaffSelector();
@@ -1557,16 +2006,21 @@ function wireUI(){
 
   els.uploadBriefBtn.onclick = uploadBrief;
   els.createTaskBtn.onclick = createTask;
+
+  if(els.taskDueMode) els.taskDueMode.onchange = updateTaskDueModeUI;
   els.createTeamBtn.onclick = createTeam;
+  if(els.reloadPeopleBtn) els.reloadPeopleBtn.onclick = refresh;
+  if(els.createUserBtn) els.createUserBtn.onclick = createAuthUser;
   els.addProjBtn.onclick = addProject;
+  if(els.taskTargetType) els.taskTargetType.onchange = syncAdminTargetVisibility;
 }
 
 wireUI();
 boot();
 
-supabase.auth.onAuthStateChange((_event,_session)=> {
-  boot();
-});
+if(sb){
+  sb.auth.onAuthStateChange((_event,_session)=> { boot(); });
+}
 </script>
 </body>
 </html>
