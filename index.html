@@ -316,6 +316,7 @@ header button.pill:hover{
         <div>
           <label>Quarter</label><br/>
           <select id="qSel">
+            <option value="all" selected>All quarters</option>
             <option value="1">Q1</option>
             <option value="2">Q2</option>
             <option value="3">Q3</option>
@@ -448,8 +449,7 @@ header button.pill:hover{
 
   <div class="row" style="margin-bottom:10px;">
     <button class="primary" id="reloadPeopleBtn">Reload people</button>
-    <button id="createUserBtn">Create user (Auth)</button>
-    <span class="small muted">Create user requires an Edge Function (service role). See SQL/steps below.</span>
+<span class="small muted">Users are created in Supabase (Auth) and then managed here.</span>
   </div>
 
   <div style="overflow:auto;">
@@ -695,9 +695,7 @@ const els = {
   peopleTbody: document.getElementById("peopleTbody"),
 
   reloadPeopleBtn: document.getElementById("reloadPeopleBtn"),
-  createUserBtn: document.getElementById("createUserBtn"),
-
-  actualBar: document.getElementById("actualBar"),
+actualBar: document.getElementById("actualBar"),
   progressText: document.getElementById("progressText"),
   expectedText: document.getElementById("expectedText"),
 
@@ -764,7 +762,7 @@ let projectCollabs = [];
 let peopleProfiles = [];
 
 let refreshTimer = null;
-
+const AUTO_REFRESH_ENABLED = false; // background refresh disabled (you asked for peace)
 function toast(msg){
   els.toast.textContent = msg;
   els.toast.style.display = "block";
@@ -885,17 +883,24 @@ async function signOut(){
 function initYearQuarter(){
   const now = new Date();
   const y = now.getUTCFullYear();
+
+  // Default view: show everything (filters are optional)
   els.yearSel.innerHTML = "";
+  const allY = document.createElement("option");
+  allY.value = "all";
+  allY.textContent = "All years";
+  allY.selected = true;
+  els.yearSel.appendChild(allY);
+
   for(let yy=y-1; yy<=y+1; yy++){
     const opt = document.createElement("option");
     opt.value = yy;
     opt.textContent = yy;
-    if(yy===y) opt.selected = true;
     els.yearSel.appendChild(opt);
   }
-  const m = now.getUTCMonth(); // 0-11
-  const q = Math.floor(m/3)+1;
-  els.qSel.value = String(q);
+
+  // Quarter selector defaults to "all" via HTML option.
+  // If you want to force current quarter instead, set els.qSel.value here.
 }
 
 function updateTaskDueModeUI(){
@@ -958,20 +963,21 @@ async function ensureProfile(){
 }
 
 async function loadCore(){
-  const year = Number(els.yearSel.value);
-  const quarter = Number(els.qSel.value);
-
-  const t1 = await db("teams").select("*").order("name", {ascending:true});
+const t1 = await db("teams").select("*").order("name", {ascending:true});
   teams = t1.data || [];
 
   const t2 = await db("team_members").select("*");
   members = t2.data || [];
 
-  const t3 = await db("compliance_tasks")
-    .select("*")
-    .eq("year", year)
-    .eq("quarter", quarter)
-    .order("due_date", {ascending:true});
+  // Tasks: default load is "all" (filters can narrow down)
+  const yv = els.yearSel.value;
+  const qv = els.qSel.value;
+
+  let tq = db("compliance_tasks").select("*");
+  if(yv !== "all") tq = tq.eq("year", Number(yv));
+  if(qv !== "all") tq = tq.eq("quarter", Number(qv));
+
+  const t3 = await tq;
   tasks = t3.data || [];
 
   const t4 = await db("task_assignments").select("*");
@@ -997,8 +1003,22 @@ const n = await db("rcm_project_notes").select("*");
 projectNotes = n.data || [];
 
 // Collaborators
-const c = await db("project_collaborators").select("*");
-projectCollabs = c.data || [];
+let c = { data: [], error: null };
+try{
+  c = await db("project_collaborators").select("*");
+  if(c?.error){
+    // If the table doesn't exist yet, don't spam the console forever.
+    if(String(c.error?.message||"").toLowerCase().includes("not found") || c.status === 404){
+      projectCollabs = [];
+    } else {
+      console.error("project_collaborators load error", c.error);
+    }
+  }
+  projectCollabs = c.data || [];
+}catch(e){
+  console.error("project_collaborators load exception", e);
+  projectCollabs = [];
+}
 
 // People (SNDM only)
 if(roleIs("sndm")){
@@ -1008,6 +1028,75 @@ if(roleIs("sndm")){
   peopleProfiles = [];
 }
 
+}
+
+
+function fillSelect(sel, options, placeholder){
+  if(!sel) return;
+  sel.innerHTML = "";
+  if(placeholder){
+    const o=document.createElement("option");
+    o.value=""; o.textContent=placeholder;
+    sel.appendChild(o);
+  }
+  (options||[]).forEach(opt=>{
+    const o=document.createElement("option");
+    o.value=opt.value;
+    o.textContent=opt.label;
+    if(opt.selected) o.selected=true;
+    sel.appendChild(o);
+  });
+}
+
+function populateTaskAdminSelectors(){
+  if(!roleIs("sndm")) return;
+  if(!els.taskTargetTeam || !els.taskTargetPerson) return;
+
+  fillSelect(els.taskTargetTeam,
+    (teams||[]).map(t=>({value:t.id, label:t.name})),
+    "Select team…"
+  );
+
+  fillSelect(els.taskTargetPerson,
+    (peopleProfiles||[]).map(p=>({value:p.user_id, label:`${p.display_name||p.user_id} (${p.role})`})),
+    "Select person…"
+  );
+
+  if(els.taskOwner){
+    fillSelect(els.taskOwner,
+      [{value:"", label:"Owner: Unassigned", selected:true}]
+        .concat((peopleProfiles||[]).map(p=>({value:p.user_id, label:`Owner: ${p.display_name||p.user_id}`}))),
+      null
+    );
+  }
+
+  if(els.taskPeriodYear){
+    const nowY = new Date().getUTCFullYear();
+    const current = Number(els.yearSel?.value || nowY);
+    const years = [];
+    for(let yy=nowY-1; yy<=nowY+2; yy++){
+      years.push({value:String(yy), label:String(yy), selected: yy===current});
+    }
+    fillSelect(els.taskPeriodYear, years, null);
+  }
+
+  updateTaskAdminTargetUI();
+}
+
+function updateTaskAdminTargetUI(){
+  if(!roleIs("sndm")) return;
+
+  const type = els.taskTargetType?.value || "team_all";
+  const showTeam = (type==="team_one");
+  const showPerson = (type==="person_one");
+  if(els.taskTargetTeam) els.taskTargetTeam.style.display = showTeam ? "" : "none";
+  if(els.taskTargetPerson) els.taskTargetPerson.style.display = showPerson ? "" : "none";
+
+  const mode = els.taskDueMode?.value || "quarter";
+  const showQuarter = (mode==="quarter");
+  if(els.taskPeriodYear) els.taskPeriodYear.style.display = showQuarter ? "" : "none";
+  if(els.taskPeriodQuarter) els.taskPeriodQuarter.style.display = showQuarter ? "" : "none";
+  if(els.taskDueDate) els.taskDueDate.style.display = (mode==="date") ? "" : "none";
 }
 
 function buildSelectors(){
@@ -1022,7 +1111,6 @@ function buildSelectors(){
     const opt = document.createElement("option");
     opt.value = t.id;
     opt.textContent = t.name;
-    if(roleIs("rcm") && t.rcm_user_id === sessionUser.id) opt.selected = true;
     els.teamSel.appendChild(opt);
   });
 
@@ -1032,12 +1120,20 @@ function buildSelectors(){
     loadRcmUsersForTeamBuilder();
   }
 
-  const year = Number(els.yearSel.value);
-  const q = Number(els.qSel.value);
-  const { start, end } = getQuarterWindow(year, q);
-  els.periodPill.textContent = `Period: ${year} Q${q} (${fmtDate(start)} to ${fmtDate(new Date(end.getTime()-86400000))})`;
+  const yv = els.yearSel.value;
+  const qv = els.qSel.value;
+  if(yv === "all" || qv === "all"){
+    els.periodPill.textContent = "Period: All tasks";
+  } else {
+    const year = Number(yv);
+    const q = Number(qv);
+    const { start, end } = getQuarterWindow(year, q);
+    els.periodPill.textContent = `Period: ${year} Q${q} (${fmtDate(start)} to ${fmtDate(new Date(end.getTime()-86400000))})`;
+  }
 
-  // Keep Task Admin scheduling pickers aligned
+  
+  populateTaskAdminSelectors();
+// Keep Task Admin scheduling pickers aligned
   syncTaskAdminPeriodPickers();
 
 }
@@ -1174,8 +1270,11 @@ function makeFileUrl(storagePath){
 }
 
 async function renderTasks(){
-  const year = Number(els.yearSel.value);
-  const quarter = Number(els.qSel.value);
+  const yv = els.yearSel.value;
+  const qv = els.qSel.value;
+  // When viewing "All" we don't have a single year/quarter context.
+  const year = (yv === "all") ? NaN : Number(yv);
+  const quarter = (qv === "all") ? NaN : Number(qv);
   const teamId = els.teamSel.value;
   const staffId = els.staffSel.value;
   const q = els.searchBox.value.trim();
@@ -1196,19 +1295,46 @@ async function renderTasks(){
     list = list.filter(t=> myTeamIds.includes(t.team_id));
   }
 
+  // Chronological order: dated tasks by due_date; quarter tasks by quarter end.
+  const quarterEndKey = (t)=>{
+    if(t.due_date){
+      const d = new Date(String(t.due_date)+"T00:00:00Z");
+      const ts = d.getTime();
+      return Number.isFinite(ts) ? ts : 9e15;
+    }
+    // Quarter tasks: use last day of the quarter.
+    if(Number.isFinite(Number(t.year)) && Number.isFinite(Number(t.quarter))){
+      const qStartMonth = (Number(t.quarter)-1)*3;
+      const end = new Date(Date.UTC(Number(t.year), qStartMonth+3, 1, 0,0,0));
+      return end.getTime() - 1;
+    }
+    return 9e15;
+  };
+  list.sort((a,b)=>{
+    const ka = quarterEndKey(a);
+    const kb = quarterEndKey(b);
+    if(ka !== kb) return ka - kb;
+    return String(a.title||"").localeCompare(String(b.title||""));
+  });
+
   const total = list.length;
   const done = list.filter(t=> isTaskCompleted(t.id)).length;
   const pct = total ? Math.round((done/total)*100) : 0;
   els.actualBar.style.width = pct + "%";
   els.progressText.textContent = `Actual: ${done}/${total} (${pct}%) completed`;
 
-  const { start, end } = getQuarterWindow(year, quarter);
-  const now = new Date();
-  const totalMs = end - start;
-  const elapsedMs = Math.min(Math.max(now - start, 0), totalMs);
-  const expectedRatio = totalMs ? (elapsedMs/totalMs) : 0;
-  const expectedCount = Math.round(total * expectedRatio);
-  els.expectedText.textContent = `Expected by today: ~${expectedCount}/${total} (${Math.round(expectedRatio*100)}%)`;
+  // Expected target only makes sense when we're scoped to a specific quarter.
+  if(!Number.isFinite(year) || !Number.isFinite(quarter)){
+    els.expectedText.textContent = "Expected by today: n/a (all periods)";
+  } else {
+    const { start, end } = getQuarterWindow(year, quarter);
+    const now = new Date();
+    const totalMs = end - start;
+    const elapsedMs = Math.min(Math.max(now - start, 0), totalMs);
+    const expectedRatio = totalMs ? (elapsedMs/totalMs) : 0;
+    const expectedCount = Math.round(total * expectedRatio);
+    els.expectedText.textContent = `Expected by today: ~${expectedCount}/${total} (${Math.round(expectedRatio*100)}%)`;
+  }
 
   const allTagged = [...new Set(list.flatMap(t=> getTaskTaggedStaff(t.id)))];
   const nameMap = await resolveNames(allTagged);
@@ -1228,11 +1354,13 @@ async function renderTasks(){
       canComplete = myTeamIds.includes(t.team_id);
     }
 
-    const doneCell = completed
-      ? `<button class="danger" data-undone="${t.id}" ${roleIs("staff")?"disabled":""}>Undo</button>`
-      : `<button class="primary" data-done="${t.id}" ${(!canComplete)?"disabled":""}>Complete</button>`;
+    const doneCell = `
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" data-donechk="${t.id}" ${completed ? "checked" : ""} ${(!canComplete) ? "disabled" : ""} />
+      </label>
+    `;
 
-    const due = t.due_date ? t.due_date : "";
+    const due = t.due_date ? t.due_date : `${t.year} Q${t.quarter}`;
     const status = statusDot(completed, due);
 
     els.tasksTbody.insertAdjacentHTML("beforeend", `
@@ -1258,13 +1386,14 @@ async function renderTasks(){
     `);
   }
 
-  document.querySelectorAll("[data-done]").forEach(btn=>{
-    btn.onclick = async ()=> completeTask(btn.dataset.done);
+  document.querySelectorAll("[data-donechk]").forEach(chk=>{
+    chk.onchange = async ()=> {
+      const id = chk.dataset.donechk;
+      if(chk.checked) await completeTask(id);
+      else await undoTask(id);
+    };
   });
-  document.querySelectorAll("[data-undone]").forEach(btn=>{
-    btn.onclick = async ()=> undoTask(btn.dataset.undone);
-  });
-  document.querySelectorAll("[data-tag]").forEach(btn=>{
+document.querySelectorAll("[data-tag]").forEach(btn=>{
     btn.onclick = async ()=> tagStaffToTask(btn.dataset.tag);
   });
   document.querySelectorAll("[data-linkbrief]").forEach(btn=>{
@@ -1282,14 +1411,14 @@ async function completeTask(taskId){
   });
   if(error){ console.error(error); return toast(error.message); }
   toast("Task completed.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function undoTask(taskId){
   const { error } = await db("task_completions").delete().eq("task_id", taskId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Completion removed.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function tagStaffToTask(taskId){
@@ -1308,7 +1437,7 @@ async function tagStaffToTask(taskId){
   });
   if(error){ console.error(error); return toast(error.message); }
   toast("Staff tagged.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function linkBriefToTask(taskId){
@@ -1321,7 +1450,7 @@ async function linkBriefToTask(taskId){
   const { error } = await db("brief_task_links").insert({ task_id: taskId, brief_id: picked.trim() });
   if(error){ console.error(error); return toast(error.message); }
   toast("Brief linked.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function renderBriefs(){
@@ -1395,7 +1524,7 @@ async function markBriefRead(briefId){
   });
   if(error){ console.error(error); return toast(error.message); }
   toast("Marked read.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function deleteBrief(briefId){
@@ -1403,7 +1532,7 @@ async function deleteBrief(briefId){
   const { error } = await db("briefs").delete().eq("id", briefId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Brief deleted.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function uploadBrief(){
@@ -1435,7 +1564,7 @@ async function uploadBrief(){
   els.briefTitle.value = "";
   els.briefTags.value = "";
   toast("Brief uploaded.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function renderProjects(){
@@ -1516,7 +1645,7 @@ async function addProject(){
   if(error){ console.error(error); return toast(error.message); }
   els.projTitle.value = "";
   toast("Project added.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function addProjectNote(projectId){
@@ -1525,12 +1654,13 @@ async function addProjectNote(projectId){
 
   const { error } = await db("rcm_project_notes").insert({
     project_id: projectId,
+    owner_user_id: sessionUser.id,
     note,
     created_at: new Date().toISOString()
   });
   if(error){ console.error(error); return toast(error.message); }
   toast("Note added.");
-  await refresh();
+  await safeRefresh();
 }
 
 
@@ -1550,7 +1680,7 @@ async function addProjectCollaborator(projectId){
   const { error: insErr } = await db("project_collaborators").insert({ project_id: projectId, user_id: userId });
   if(insErr){ console.error(insErr); return toast(insErr.message || "Failed"); }
   toast("Collaborator added.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function removeProjectCollaborator(projectId){
@@ -1569,7 +1699,7 @@ async function removeProjectCollaborator(projectId){
   const { error: delErr } = await db("project_collaborators").delete().eq("project_id", projectId).eq("user_id", userId);
   if(delErr){ console.error(delErr); return toast(delErr.message || "Failed"); }
   toast("Collaborator removed.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function deleteProject(projectId){
@@ -1578,7 +1708,7 @@ async function deleteProject(projectId){
   const { error } = await db("rcm_projects").delete().eq("id", projectId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Project deleted.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function renderTeams(){
@@ -1633,7 +1763,7 @@ async function renderTeams(){
       });
       if(error){ console.error(error); return toast(error.message); }
       toast("Member added.");
-      await refresh();
+      await safeRefresh();
     };
   });
 
@@ -1645,7 +1775,7 @@ async function renderTeams(){
       const { error } = await db("teams").delete().eq("id", teamId);
       if(error){ console.error(error); return toast(error.message); }
       toast("Team deleted.");
-      await refresh();
+      await safeRefresh();
     };
   });
 }
@@ -1659,7 +1789,7 @@ async function createTeam(){
   if(error){ console.error(error); return toast(error.message); }
   els.teamName.value = "";
   toast("Team created.");
-  await refresh();
+  await safeRefresh();
 }
 
 
@@ -1747,42 +1877,17 @@ async function savePerson(userId, displayName, role, teamId){
   }
 
   toast("Saved.");
-  await refresh();
+  await safeRefresh();
 }
 
 async function removePersonFromTeam(userId){
   const { error } = await db("team_members").delete().eq("user_id", userId);
   if(error){ console.error(error); return toast(error.message); }
   toast("Removed from team.");
-  await refresh();
+  await safeRefresh();
 }
 
 // Auth user creation requires Edge Function (service role). UI calls it if configured.
-async function createAuthUser(){
-  const email = prompt("Email for new user:");
-  if(!email) return;
-  const name = prompt("Display name:");
-  const role = prompt("Role (sndm/rcm/staff):", "staff") || "staff";
-  const password = prompt("Temporary password (tell them to change it):");
-  if(!password) return;
-
-  const fnUrl = (window.COMPLIANCE_ADMIN_FN_URL || "").trim();
-  if(!fnUrl) return toast("Edge Function URL not configured. See setup notes.");
-
-  const { data: sess } = await sb.auth.getSession();
-  const jwt = sess?.session?.access_token;
-  if(!jwt) return toast("You must be signed in.");
-
-  const res = await fetch(fnUrl, {
-    method: "POST",
-    headers: { "Content-Type":"application/json", "Authorization": "Bearer "+jwt },
-    body: JSON.stringify({ email, password, display_name: name||"", role })
-  });
-  const out = await res.json().catch(()=> ({}));
-  if(!res.ok){ console.error(out); return toast(out.error || "Create user failed"); }
-  toast("User created.");
-  await refresh();
-}
 
 async function renderAdminTasks(){
   if(!roleIs("sndm")) return;
@@ -1817,89 +1922,94 @@ async function renderAdminTasks(){
       const { error } = await db("compliance_tasks").delete().eq("id", id);
       if(error){ console.error(error); return toast(error.message); }
       toast("Task deleted.");
-      await refresh();
+      await safeRefresh();
     };
   });
 }
 
+
 async function createTask(){
-  if(!roleIs("sndm")) return toast("Only SNDM can create tasks (for now).");
+  if(!roleIs("sndm")) return toast("SNDM only.");
 
-  const title = (els.taskTitle.value||"").trim();
-  const tags = (els.taskTags.value||"").trim();
-  const targetType = els.taskTargetType.value;
-  const ownerUserId = (els.taskOwner.value||"").trim() || null;
+  const title = (els.taskTitle?.value || "").trim();
+  const dueMode = els.taskDueMode?.value || "quarter"; // quarter|date
+  const tags = ((els.taskTags?.value || "").trim()); // optional
+  const ownerUserId = ((els.taskOwner?.value || "").trim()) || null;
 
-  const dueMode = (els.taskDueMode.value||"quarter");
-  let year = Number(els.taskPeriodYear.value || els.yearSel.value);
-  let quarter = Number(els.taskPeriodQuarter.value || els.qSel.value);
-  let due_date = null;
+  if(!title) return toast("Task title required.");
 
-  if(dueMode === "date"){
-    const picked = (els.taskDueDate.value||"").trim();
-    if(!picked) return toast("Pick a due date.");
-    const d = new Date(picked + "T00:00:00Z");
-    year = d.getUTCFullYear();
-    quarter = Math.floor(d.getUTCMonth()/3)+1;
-    due_date = picked;
-  }if(!title) return toast("Task title required.");
+  const targetType = els.taskTargetType?.value || "team_all";
+  let targetTeams = [];
+  let targetPeople = [];
 
-  // Build targets
-  let targets = [];
-  if(targetType === "team_one"){
-    const teamId = els.taskTargetTeam.value;
-    if(!teamId) return toast("Select a team.");
-    targets = [{ team_id: teamId, primary_user_id: null }];
-  }
   if(targetType === "team_all"){
-    targets = teams.map(t=> ({ team_id: t.id, primary_user_id: null }));
-  }
-  if(targetType === "person_one"){
-    const uid = els.taskTargetPerson.value;
-    if(!uid) return toast("Select a person.");
-    // Find their first team membership; if none, we still create but team_id null (requires SQL change) OR park it as unassigned (team_id null).
-    const member = members.find(m=> m.user_id===uid);
-    targets = [{ team_id: member?.team_id || null, primary_user_id: uid }];
-  }
-  if(targetType === "person_all"){
-    // Everyone we know about (profiles), including unassigned.
-    const { data: ppl, error } = await db("profiles").select("user_id");
-    if(error){ console.error(error); return toast(error.message); }
-    const ids = (ppl||[]).map(p=> p.user_id);
-    targets = ids.map(uid=>{
-      const member = members.find(m=> m.user_id===uid);
-      return { team_id: member?.team_id || null, primary_user_id: uid };
-    });
+    targetTeams = (teams||[]).map(t=>t.id);
+    if(!targetTeams.length) return toast("No teams exist yet.");
+  } else if(targetType === "team_one"){
+    const teamId = els.taskTargetTeam?.value;
+    if(!teamId) return toast("Select a team.");
+    targetTeams = [teamId];
+  } else if(targetType === "person_all"){
+    targetPeople = (peopleProfiles||[]).map(p=>p.user_id);
+    if(!targetPeople.length) return toast("No people exist yet.");
+  } else if(targetType === "person_one"){
+    const pid = els.taskTargetPerson?.value;
+    if(!pid) return toast("Select a person.");
+    targetPeople = [pid];
   }
 
-  // Insert tasks (one per target)
-  const rows = targets.map(t=>({
-    team_id: t.team_id, // may be null for unassigned personal tasks (SQL supports)
-    year, quarter,
-    title,
-    tags,
-    due_date: due_date,
-    created_by: sessionUser.id,
-    owner_user_id: ownerUserId,
-    primary_user_id: t.primary_user_id
-  }));
+  const base = { title, tags, created_by: sessionUser.id, owner_user_id: ownerUserId };
+  let rows = [];
 
-  const { error: insErr } = await db("compliance_tasks").insert(rows);
-  if(insErr){ console.error(insErr); return toast(insErr.message); }
+  if(dueMode === "quarter"){
+    const year = Number(els.taskPeriodYear?.value || els.yearSel?.value);
+    const quarter = Number(els.taskPeriodQuarter?.value || els.qSel?.value);
+    if(!year || !quarter) return toast("Year + Quarter required.");
 
-  els.taskTitle.value = "";
-  els.taskTags.value = "";
-  els.taskDueDate.value = "";
-  els.taskDueMode.value = "quarter";
-  updateTaskDueModeUI();
-  toast(`Task(s) created: ${rows.length}`);
-  await refresh();
+    if(targetTeams.length){
+      rows = targetTeams.map(team_id => ({...base, team_id, year, quarter, due_date: null, target_user_id: null}));
+    } else {
+      rows = targetPeople.map(target_user_id => ({...base, team_id: null, year, quarter, due_date: null, target_user_id}));
+    }
+  } else {
+    const due = (els.taskDueDate?.value || "").trim();
+    if(!due) return toast("Pick a due date.");
+
+    const d = new Date(due+"T00:00:00Z");
+    const year = d.getUTCFullYear();
+    const quarter = Math.floor(d.getUTCMonth()/3)+1;
+
+    if(targetTeams.length){
+      rows = targetTeams.map(team_id => ({...base, team_id, year, quarter, due_date: due, target_user_id: null}));
+    } else {
+      rows = targetPeople.map(target_user_id => ({...base, team_id: null, year, quarter, due_date: due, target_user_id}));
+    }
+  }
+
+  const CHUNK = 50;
+  try{
+    for(let i=0;i<rows.length;i+=CHUNK){
+      const chunk = rows.slice(i,i+CHUNK);
+      const { error } = await db("compliance_tasks").insert(chunk);
+      if(error) throw error;
+    }
+    if(els.taskTitle) els.taskTitle.value = "";
+    if(els.taskTags) els.taskTags.value = "";
+    if(els.taskDueDate) els.taskDueDate.value = "";
+    toast(`Task created (${rows.length}).`);
+    await safeRefresh();
+  }catch(e){
+    console.error(e);
+    toast(e.message || "Failed to create task.");
+  }
 }
 
 
+
+
 function renderSnapshot(){
-  const year = Number(els.yearSel.value);
-  const q = Number(els.qSel.value);
+  const yv = els.yearSel.value;
+  const qv = els.qSel.value;
   const teamId = els.teamSel.value;
 
   let list = tasks.slice();
@@ -1915,7 +2025,7 @@ function renderSnapshot(){
   const open = total - done;
 
   els.snapshotText.innerHTML = `
-    <div>Period: <b>${year} Q${q}</b></div>
+    <div>Period: <b>${(yv==="all"||qv==="all") ? "All tasks" : (Number(yv)+" Q"+Number(qv))}</b></div>
     <div>Tasks: <b>${total}</b> | Open: <b>${open}</b> | Completed: <b>${done}</b></div>
     <div class="muted" style="margin-top:6px;">
       Scope: <b>${teamId==="all" ? "All teams" : teamName(teamId)}</b>
@@ -1926,7 +2036,7 @@ function renderSnapshot(){
 async function refresh(){
   await loadCore();
   buildSelectors();
-renderSnapshot();
+  renderSnapshot();
   await renderTasks();
   await renderBriefs();
   await renderProjects();
@@ -1935,17 +2045,27 @@ renderSnapshot();
   await renderAdminTasks();
 }
 
+async function safeRefresh(){
+  try{
+    await refresh();
+  }catch(e){
+    console.error("Async error:", e);
+    toast("Async error (see console).");
+  }
+}
 function startAutoRefresh(){
+  // Disabled by default. Keeping the function defined avoids console spam.
+  if(!AUTO_REFRESH_ENABLED) return;
   stopAutoRefresh();
   refreshTimer = setInterval(async ()=>{
-    // avoid hammering when not visible
     if(document.hidden) return;
-    await refresh();
-  }, 10000);
+    await safeRefresh();
+  }, 30000);
 }
 function stopAutoRefresh(){
   if(refreshTimer){ clearInterval(refreshTimer); refreshTimer = null; }
 }
+
 
 async function boot(){
   const { data: sess } = await sb.auth.getSession();
@@ -1978,7 +2098,7 @@ async function boot(){
 
   enforceRoleUI();
   initYearQuarter();
-await refresh();
+await safeRefresh();
   setTab("compliance");
   startAutoRefresh();
 }
@@ -1991,7 +2111,7 @@ els.yearSel.onchange = refresh;
   els.qSel.onchange = refresh;
   els.teamSel.onchange = async ()=>{
     await rebuildStaffSelector();
-    await refresh();
+    await safeRefresh();
   };
   els.staffSel.onchange = renderTasks;
   els.searchBox.oninput = async ()=>{
@@ -2010,9 +2130,11 @@ els.yearSel.onchange = refresh;
   if(els.taskDueMode) els.taskDueMode.onchange = updateTaskDueModeUI;
   els.createTeamBtn.onclick = createTeam;
   if(els.reloadPeopleBtn) els.reloadPeopleBtn.onclick = refresh;
-  if(els.createUserBtn) els.createUserBtn.onclick = createAuthUser;
   els.addProjBtn.onclick = addProject;
-  if(els.taskTargetType) els.taskTargetType.onchange = syncAdminTargetVisibility;
+
+  if(els.taskTargetType) els.taskTargetType.onchange = updateTaskAdminTargetUI;
+  if(els.taskDueMode) els.taskDueMode.onchange = updateTaskAdminTargetUI;
+if(els.taskTargetType) els.taskTargetType.onchange = syncAdminTargetVisibility;
 }
 
 wireUI();
