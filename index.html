@@ -63,6 +63,24 @@
       background: rgba(255,255,255,.06);
     }
 
+    /* === Status badges === */
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background:#fff;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .badge.good{ background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.35); }
+    .badge.warn{ background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.35); }
+    .badge.bad{  background: rgba(239,68,68,.14);  border-color: rgba(239,68,68,.35); }
+    .badge.neutral{ background: rgba(107,114,128,.10); border-color: rgba(107,114,128,.25); color: var(--muted); }
+
 header button.pill{
   color: #f9fafb;              /* force light text */
   background: rgba(255,255,255,.06);
@@ -273,7 +291,7 @@ header button.pill:hover{
 <header>
   <h1>Control Compliance Hub (V1)</h1>
   <div class="meta">
-    <span class="pill" id="envPill">Mini Project Hub (Supabase schema: compliance)</span>
+    <span class="pill" id="envPill">Mini Project Hub (Supabase schema: compliance_core)</span>
     <span class="pill" id="userPill">Not signed in</span>
     <button id="signOutBtn" class="pill" style="display:none;">Sign out</button>
   </div>
@@ -581,10 +599,10 @@ header button.pill:hover{
  * ===========================
  * SUPABASE CONFIG (EDIT THIS)
  * ===========================
- * This is meant for the Mini Project Hub: keep all tables in schema = 'compliance'
+ * This is meant for the Mini Project Hub: keep all tables in schema = 'compliance_core'
  * and do NOT touch other apps.
  */
-const APP_SCHEMA = "compliance";
+const APP_SCHEMA = "compliance_core";
 const RAW_SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co"; // keep your configured value
 const SUPABASE_URL = (() => {
   let u = (RAW_SUPABASE_URL || "").trim();
@@ -706,6 +724,7 @@ actualBar: document.getElementById("actualBar"),
 
   // Admin task create
   taskTitle: document.getElementById("taskTitle"),
+  taskNotes: document.getElementById("taskNotes"),
   taskTags: document.getElementById("taskTags"),
   taskDueMode: document.getElementById("taskDueMode"),
   taskPeriodYear: document.getElementById("taskPeriodYear"),
@@ -744,7 +763,8 @@ window.addEventListener("unhandledrejection", (e)=> {
 });
 
 let sessionUser = null;
-let profile = null; // {user_id, display_name, role}
+let profile = null;
+let allProfiles = []; // cached profiles for dropdowns (user_id, display_name, role) // {user_id, display_name, role}
 let teams = [];
 let members = [];
 let tasks = [];
@@ -755,6 +775,7 @@ let briefReads = [];
 let briefLinks = [];
 let projects = [];
 let projectNotes = [];
+let projectCollaborators = [];
 let projectCollabs = [];
 let peopleProfiles = [];
 
@@ -788,6 +809,18 @@ function matchSearch(s, q){
   if(!q) return true;
   return (s||"").toLowerCase().includes(q.toLowerCase());
 }
+
+function profileLabel(p){
+  const name = (p.display_name || "").trim();
+  return name ? `${name} (${p.role})` : `${p.user_id} (${p.role})`;
+}
+function profileOptionsHtml(selectedId=""){
+  return (allProfiles||[]).map(p=>{
+    const sel = (p.user_id===selectedId) ? " selected" : "";
+    return `<option value="${escapeAttr(p.user_id)}"${sel}>${escapeHtml(profileLabel(p))}</option>`;
+  }).join("");
+}
+
 function escapeHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
@@ -797,6 +830,16 @@ function escapeHtml(s){
     .replaceAll("'","&#039;");
 }
 function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
+
+function roleLabel(r){
+  if(!r) return "-";
+  const x = String(r).toLowerCase();
+  if(x === "sndm") return "SNDM";
+  if(x === "rcm") return "RCM";
+  if(x === "staff") return "Staff";
+  return String(r);
+}
+
 
 function roleIs(r){ return (profile?.role || "") === r; }
 function roleIn(arr){ return arr.includes(profile?.role || ""); }
@@ -810,7 +853,7 @@ function setTab(tab){
 }
 
 function enforceRoleUI(){
-  els.rolePill.textContent = `Role: ${profile?.role || "-"}`;
+  els.rolePill.textContent = `Role: ${roleLabel(profile?.role)}`;
   els.peopleTab.style.display = roleIs("sndm") ? "" : "none";
   els.teamsTab.style.display = roleIs("sndm") ? "" : "none";
   els.adminTab.style.display = roleIs("sndm") ? "" : "none";
@@ -920,7 +963,8 @@ function syncTaskAdminPeriodPickers(){
 
 
 async function ensureProfile(){
-  // Loads profile row, and creates one if missing (role defaults to 'staff' until an SNDM grants/changes it).
+  // STRICT MODE: user must already exist in compliance.profiles.
+  // No auto-creation in the browser (keeps governance sane).
   const { data: sess } = await sb.auth.getSession();
   sessionUser = sess?.session?.user || null;
   if(!sessionUser) return null;
@@ -932,34 +976,22 @@ async function ensureProfile(){
 
   if(error){
     console.error(error);
-    toast("Profile load failed. Check RLS / schema.");
+    toast("Profile load failed. Check RLS / schema exposure.");
     return null;
   }
 
-  if(data) return data;
-
-  // Create minimal profile
-  const display = (sessionUser.email || "User").split("@")[0];
-  const ins = await db("profiles").insert({
-    user_id: sessionUser.id,
-    display_name: display,
-    role: "staff"
-  });
-  if(ins.error){
-    console.error(ins.error);
-    toast("Profile auto-create failed. Run the SQL bootstrap.");
+  if(!data){
+    // Hard fail: immediately sign out and block entry.
+    toast("No profile found for this account. Ask an SNDM to provision you in compliance.profiles.");
+    await sb.auth.signOut();
+    sessionUser = null;
     return null;
   }
 
-  const { data: created } = await db("profiles")
-    .select("user_id, display_name, role")
-    .eq("user_id", sessionUser.id)
-    .single();
-
-  return created || null;
+  return data;
 }
 
-async function loadCore(){
+async function loadCoreasync function loadCore(){
 const t1 = await db("teams").select("*").order("name", {ascending:true});
   teams = t1.data || [];
 
@@ -1230,6 +1262,23 @@ function teamName(teamId){
   return t?.name || "Unknown";
 }
 
+
+function taskBadgeHtml(completed, dueDateStr){
+  let cls = "neutral";
+  let label = "No due";
+  if(completed){
+    cls = "good"; label = "Done";
+  } else if(dueDateStr){
+    const now = new Date();
+    const due = new Date(dueDateStr+"T00:00:00Z");
+    const diffDays = Math.floor((due - now)/86400000);
+    if(diffDays < 0){ cls="bad"; label="Overdue"; }
+    else if(diffDays <= 7){ cls="warn"; label=`Due ${diffDays}d`; }
+    else { cls="neutral"; label=`Due ${diffDays}d`; }
+  }
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
 function statusDot(completed, dueDateStr){
   if(completed) return `<span class="dot good"></span>Green`;
   if(!dueDateStr) return `<span class="dot warn"></span>Amber`;
@@ -1254,9 +1303,20 @@ function linkedBrief(taskId){
 
 async function resolveNames(userIds){
   if(!userIds.length) return {};
-  const { data } = await db("profiles").select("user_id, display_name").in("user_id", userIds);
   const map = {};
+  // Prefer cached profile list
+  const cache = (allProfiles||[]);
+  for(const id of userIds){
+    const p = cache.find(x=> x.user_id===id);
+    if(p) map[id] = p.display_name || p.user_id;
+  }
+  // Fill any missing via API (rare)
+  const missing = userIds.filter(id=> !(id in map));
+  if(!missing.length) return map;
+
+  const { data } = await db("profiles").select("user_id, display_name").in("user_id", missing);
   (data||[]).forEach(p=> map[p.user_id] = p.display_name || p.user_id);
+  missing.forEach(id=> { if(!(id in map)) map[id] = id; });
   return map;
 }
 
@@ -1364,7 +1424,8 @@ async function renderTasks(){
       <tr>
         <td>${doneCell}</td>
         <td>
-          <div><b>${escapeHtml(t.title)}</b></div>
+          <div class="row" style="gap:8px; flex-wrap:wrap;"><b>${escapeHtml(t.title)}</b> ${taskBadgeHtml(completed, due)}</div>
+          <div class="small muted">${t.notes ? escapeHtml(t.notes) : ""}</div>
           <div class="small muted">${completed ? ("Completed: "+fmtDate(completedAt(t.id))) : ""}</div>
         </td>
         <td>${escapeHtml(teamName(t.team_id))}</td>
@@ -1729,7 +1790,7 @@ async function renderTeams(){
         <td class="small">${escapeHtml(memberText || "—")}</td>
         <td>
           <div class="row">
-            <input type="text" data-addmemberid="${t.id}" placeholder="user_id"/>
+            <select data-addmemberid="${t.id}">${profileOptionsHtml()}</select>
             <select data-addmemberrole="${t.id}">
               <option value="IC">IC</option>
               <option value="TRC">TRC</option>
@@ -1955,18 +2016,24 @@ async function createTask(){
     targetPeople = [pid];
   }
 
-  const base = { title, tags, created_by: sessionUser.id, owner_user_id: ownerUserId };
+  const base = { title, tags, notes, created_by: sessionUser.id, owner_user_id: ownerUserId };
   let rows = [];
 
   if(dueMode === "quarter"){
     const year = Number(els.taskPeriodYear?.value || els.yearSel?.value);
     const quarter = Number(els.taskPeriodQuarter?.value || els.qSel?.value);
     if(!year || !quarter) return toast("Year + Quarter required.");
+    const qEnd = (function(){
+      const endMonth = quarter*3;
+      const firstNext = new Date(Date.UTC(year, endMonth, 1));
+      const last = new Date(firstNext.getTime() - 86400000);
+      return fmtDate(last);
+    })();
 
     if(targetTeams.length){
-      rows = targetTeams.map(team_id => ({...base, team_id, year, quarter, due_date: null, target_user_id: null}));
+      rows = targetTeams.map(team_id => ({...base, team_id, year, quarter, due_date: qEnd, target_user_id: null}));
     } else {
-      rows = targetPeople.map(target_user_id => ({...base, team_id: null, year, quarter, due_date: null, target_user_id}));
+      rows = targetPeople.map(target_user_id => ({...base, team_id: null, year, quarter, due_date: qEnd, target_user_id}));
     }
   } else {
     const due = (els.taskDueDate?.value || "").trim();
@@ -2091,7 +2158,7 @@ async function boot(){
   els.authCard.classList.add("hide");
   els.app.classList.remove("hide");
   els.signOut.style.display = "";
-  els.userPill.textContent = `${profile.display_name || sessionUser.email} (${profile.role})`;
+  els.userPill.textContent = `${profile.display_name || sessionUser.email} (${roleLabel(profile.role)})`;
 
   enforceRoleUI();
   initYearQuarter();
