@@ -265,8 +265,8 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  const $ = (q)=>document.querySelector(q);
+<script>window.addEventListener('DOMContentLoaded', () => {
+const $ = (q)=>document.querySelector(q);
   const $$ = (q)=>Array.from(document.querySelectorAll(q));
   const fmtDate = (iso)=> iso ? new Date(iso).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"2-digit"}) : "";
   const daysUntil = (iso)=> iso ? Math.ceil((new Date(iso).getTime()-Date.now())/86400000) : null;
@@ -284,14 +284,22 @@
 
   let sb=null;
   let me={ mode:"none", role:null, staff_id:null, staff_name:null, user_id:null, display_name:null };
+  let activeTab = "tasks";
   let cache={ staff:[], teams:[], tasks:[], taskNotes:[], taskCompletions:[], briefs:[], briefAck:[], projects:[], projectNotes:[] };
 
     // ===== Supabase config (baked in) =====
   // Put these in ONE place and stop pasting keys into UI fields like it's 2009.
-  const SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
+   const SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
 
+
   function initSupabase(){
+    if(!window.supabase || !window.supabase.createClient){
+      $("#whoAmI").innerHTML = `<span class="dot red"></span><span class="mini">Supabase library blocked</span>`;
+      toast("Supabase JS library not loaded (likely blocked). Host it locally or allow the CDN.");
+      return null;
+    }
+
     if(!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes("YOURPROJECT") || SUPABASE_ANON_KEY.includes("YOUR_")){
       $("#whoAmI").innerHTML = `<span class="dot red"></span><span class="mini">Supabase not configured</span>`;
       toast("Set SUPABASE_URL + SUPABASE_ANON_KEY in the HTML");
@@ -304,7 +312,7 @@
 
 
   async function hydrateProfile(){
-    const { data, error } = await sb.from("cck.profiles").select("display_name,role").eq("user_id",me.user_id).single();
+    const { data, error } = await sb.schema("cck").from("profiles").select("display_name,role").eq("user_id",me.user_id).single();
     if(error){ me.role=null; me.display_name=null; return; }
     me.role=data.role; me.display_name=data.display_name;
   }
@@ -329,49 +337,57 @@
   }
 
   async function loadStaffTeams(){
-    const { data: staff } = await sb.from("cck.staff_pool").select("id,display_name").order("display_name");
-    const { data: teams } = await sb.from("cck.teams").select("id,name").order("name");
+    const { data: staff } = await sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name");
+    const { data: teams } = await sb.schema("cck").from("teams").select("id,name").order("name");
     cache.staff=staff||[]; cache.teams=teams||[];
   }
   async function loadTasks(){
-    const { data: tasks } = await sb.from("cck.tasks")
+    const { data: tasks } = await sb.schema("cck").from("tasks")
       .select("id,title,description,task_type,due_at,target_team_id,target_staff_id,owner_staff_id,linked_brief_id,created_at")
       .order("due_at",{ascending:true,nullsFirst:false});
     cache.tasks=tasks||[];
     const ids=cache.tasks.map(t=>t.id);
     if(!ids.length){ cache.taskNotes=[]; cache.taskCompletions=[]; return; }
-    const { data: notes } = await sb.from("cck.task_notes").select("id,task_id,author_user_id,author_staff_id,note,created_at").in("task_id",ids).order("created_at",{ascending:false});
-    const { data: comps } = await sb.from("cck.task_completions").select("id,task_id,completed,completed_at").in("task_id",ids).order("completed_at",{ascending:false});
+    const { data: notes } = await sb.schema("cck").from("task_notes").select("id,task_id,author_user_id,author_staff_id,note,created_at").in("task_id",ids).order("created_at",{ascending:false});
+    const { data: comps } = await sb.schema("cck").from("task_completions").select("id,task_id,completed,completed_at").in("task_id",ids).order("completed_at",{ascending:false});
     cache.taskNotes=notes||[]; cache.taskCompletions=comps||[];
   }
   async function loadBriefs(){
-    const { data: briefs } = await sb.from("cck.briefs").select("id,title,description,file_path,created_at").order("created_at",{ascending:false});
+    const { data: briefs } = await sb.schema("cck").from("briefs").select("id,title,description,file_path,created_at").order("created_at",{ascending:false});
     cache.briefs=briefs||[];
     const ids=cache.briefs.map(b=>b.id);
     if(!ids.length){ cache.briefAck=[]; return; }
-    const { data: ack } = await sb.from("cck.brief_ack").select("id,brief_id,staff_id,ack_at").in("brief_id",ids);
+    const { data: ack } = await sb.schema("cck").from("brief_ack").select("id,brief_id,staff_id,ack_at").in("brief_id",ids);
     cache.briefAck=ack||[];
   }
   async function loadProjects(){
-    const { data: projs } = await sb.from("cck.projects").select("id,title,description,status,owner_staff_id,updated_at").order("updated_at",{ascending:false});
+    const { data: projs } = await sb.schema("cck").from("projects").select("id,title,description,status,owner_staff_id,updated_at").order("updated_at",{ascending:false});
     cache.projects=projs||[];
     const ids=cache.projects.map(p=>p.id);
     if(!ids.length){ cache.projectNotes=[]; return; }
-    const { data: notes } = await sb.from("cck.project_notes").select("id,project_id,note,created_at").in("project_id",ids).order("created_at",{ascending:false});
+    const { data: notes } = await sb.schema("cck").from("project_notes").select("id,project_id,note,created_at").in("project_id",ids).order("created_at",{ascending:false});
     cache.projectNotes=notes||[];
   }
 
   const nameForStaff=(id)=> (cache.staff.find(s=>s.id===id)||{}).display_name||"";
   const nameForTeam=(id)=> (cache.teams.find(t=>t.id===id)||{}).name||"";
-  const isTaskComplete=(task_id)=> !!(cache.taskCompletions.find(c=>c.task_id===task_id && c.completed));
+  const isTaskComplete=(task_id)=> {
+    const c = cache.taskCompletions.find(x=>x.task_id===task_id);
+    if(!c) return false;
+    return (c.completed===undefined) ? true : !!c.completed;
+  };
 
   function renderFilters(){
-    const ft=$("#filterTeam"), fs=$("#filterStaff"), cs=$("#controllerStaff");
-    const t0=ft.value, s0=fs.value, c0=cs.value;
+    const ft=$("#filterTeam"), fs=$("#filterStaff"), cs=$("#controllerStaff"), mt=$("#ct_targetTeam"), ms=$("#ct_targetStaff"), mo=$("#ct_owner"), cpo=$("#cp_owner");
+    const t0=ft.value, s0=fs.value, c0=cs.value, mt0=mt.value, ms0=ms.value, mo0=mo.value, cpo0=cpo.value;
     ft.innerHTML=`<option value="">All</option>`+cache.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
     fs.innerHTML=`<option value="">All</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
     cs.innerHTML=`<option value="">Select…</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
-    ft.value=t0; fs.value=s0; cs.value=c0;
+    mt.innerHTML=`<option value="">None</option>`+cache.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
+    ms.innerHTML=`<option value="">None</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
+    mo.innerHTML=`<option value="">None</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
+    cpo.innerHTML=`<option value="">None</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
+    ft.value=t0; fs.value=s0; cs.value=c0; mt.value=mt0; ms.value=ms0; mo.value=mo0; cpo.value=cpo0;
   }
 
   function renderTaskKpis(rows){
@@ -394,19 +410,24 @@
     });
     renderTaskKpis(rows);
     $("#taskTbody").innerHTML=rows.map(r=>{
-      const due=r.t.due_at?fmtDate(r.t.due_at):"";
+      const due = (r.t.task_type==="quarterly" && r.t.quarter) ? r.t.quarter : (r.t.due_at ? fmtDate(r.t.due_at) : "");
       const target=r.t.target_team_id?`Team: ${nameForTeam(r.t.target_team_id)}`:r.t.target_staff_id?`Staff: ${nameForStaff(r.t.target_staff_id)}`:"All";
       const owner=nameForStaff(r.t.owner_staff_id)||"";
       const pill=`<span class="pill"><span class="dot ${r.rag}"></span><span>${r.rag.toUpperCase()}</span></span>`;
-      const canAct=(me.mode==="auth" || (me.mode==="controller" && me.staff_id));
-      const act=r.complete?`<span class="muted mini">Completed</span>`:canAct?`<button class="ghost mini" data-action="complete" data-id="${r.t.id}">Mark complete</button>`:`<span class="muted mini">Login to action</span>`;
+      const canAuth = (me.mode==="auth");
+      const canCtrl = (me.mode==="controller" && me.staff_id);
+      const canAct = canAuth || canCtrl;
+      const act = r.complete
+        ? (canAuth ? `<button class="ghost" data-action="undo" data-id="${r.t.id}">Undo</button>` : `<span class="muted mini">Completed</span>`)
+        : (canAct ? `<button data-action="complete" data-id="${r.t.id}">Complete</button>` : `<span class="muted mini">Login to action</span>`);
       return `<tr data-open="${r.t.id}">
         <td>${pill}</td>
         <td><div style="font-weight:750">${escapeHtml(r.t.title||"")}</div><div class="muted mini">${escapeHtml(r.t.description||"")}</div></td>
         <td>${due}</td><td>${escapeHtml(target)}</td><td>${escapeHtml(owner)}</td><td>${act}</td>
       </tr>`;
     }).join("");
-    $$("#taskTbody button[data-action='complete']").forEach(b=>b.addEventListener("click", async (e)=>{ e.stopPropagation(); await markTaskComplete(b.dataset.id); }));
+    $$("#taskTbody button[data-action='complete']").forEach(b=>b.addEventListener("click", async (e)=>{ e.stopPropagation(); await toggleTaskComplete(b.dataset.id); }));
+    $$("#taskTbody button[data-action='undo']").forEach(b=>b.addEventListener("click", async (e)=>{ e.stopPropagation(); await toggleTaskComplete(b.dataset.id); }));
     $$("#taskTbody tr").forEach(tr=>tr.addEventListener("click",(e)=>{ if(e.target?.dataset?.action) return; openTaskDetail(tr.dataset.open); }));
   }
 
@@ -451,6 +472,9 @@
     else $("#teamsTab").classList.add("hide");
 
     if(me.mode==="auth"){
+      const canCreate = (me.role==="sndm") || (me.role==="rcm" && activeTab==="projects");
+      $("#createBtn").classList.toggle("hide", !canCreate);
+      $("#createBtn").textContent = (me.role==="rcm" && activeTab==="projects") ? "Create project" : "Create";
       const dot=me.role==="sndm"?"green":"amber";
       $("#whoAmI").innerHTML=`<span class="dot ${dot}"></span><span class="mini">${escapeHtml(me.display_name||"User")} (${me.role||"auth"})</span>`;
       $("#logoutBtn").classList.remove("hide"); $("#loginBtn").classList.add("hide");
@@ -464,26 +488,35 @@
   }
 
   function setTab(tab){
+    activeTab = tab;
     $$(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===tab));
     $("#tab_tasks").classList.toggle("hide",tab!=="tasks");
     $("#tab_briefs").classList.toggle("hide",tab!=="briefs");
     $("#tab_projects").classList.toggle("hide",tab!=="projects");
     $("#tab_teams").classList.toggle("hide",tab!=="teams");
     $("#panelTitle").textContent={tasks:"Tasks",briefs:"Briefing Hub",projects:"Projects",teams:"Teams"}[tab]||"Dashboard";
+    applyRole();
   }
 
-  async function markTaskComplete(task_id){
+  async function toggleTaskComplete(task_id){
+    const complete = isTaskComplete(task_id);
+    if(complete){
+      if(me.mode!=="auth") return toast("Login required");
+      const { error } = await sb.schema("cck").from("task_completions").delete().eq("task_id", task_id);
+      if(error) return toast(error.message);
+      await loadTasks(); renderTasks(); return toast("Completion reversed");
+    }
     const payload = me.mode==="auth"
       ? { task_id, completed:true, completed_by_user_id: me.user_id }
       : { task_id, completed:true, completed_by_staff_id: me.staff_id };
-    const { error } = await sb.from("cck.task_completions").insert(payload);
+    const { error } = await sb.schema("cck").from("task_completions").upsert(payload, { onConflict: "task_id" });
     if(error) return toast(error.message);
     await loadTasks(); renderTasks(); toast("Marked complete");
   }
 
   async function acknowledgeBrief(brief_id){
     if(me.mode!=="controller" || !me.staff_id) return toast("Enter controller mode and pick your name");
-    const { error } = await sb.from("cck.brief_ack").insert({ brief_id, staff_id: me.staff_id });
+    const { error } = await sb.schema("cck").from("brief_ack").insert({ brief_id, staff_id: me.staff_id });
     if(error) return toast(error.message);
     await loadBriefs(); renderBriefs(); toast("Acknowledged");
   }
@@ -506,7 +539,7 @@
     const payload = me.mode==="auth"
       ? { project_id, note: note.trim(), author_user_id: me.user_id }
       : { project_id, note: note.trim(), author_staff_id: me.staff_id };
-    const { error } = await sb.from("cck.project_notes").insert(payload);
+    const { error } = await sb.schema("cck").from("project_notes").insert(payload);
     if(error) return toast(error.message);
     await loadProjects(); renderProjects(); toast("Note added");
   }
@@ -542,6 +575,130 @@
     renderTasks(); renderBriefs(); renderProjects();
   }
 
+  
+  // ---------- Create modal (role-gated in UI) ----------
+  function showCreateSections(kind){
+    $$(".c_task").forEach(el=>el.classList.toggle("hide", kind!=="task"));
+    $$(".c_project").forEach(el=>el.classList.toggle("hide", kind!=="project"));
+    $$(".c_brief").forEach(el=>el.classList.toggle("hide", kind!=="brief"));
+    $$(".c_team").forEach(el=>el.classList.toggle("hide", kind!=="team"));
+    $("#modalTitle").textContent = "Create " + ({task:"Task",project:"Project",brief:"Brief",team:"Team"}[kind]||"Item");
+    $("#modalHint").textContent =
+      (kind==="project" && me.role==="rcm") ? "RCM allowed: create projects" :
+      (me.role==="sndm" ? "SNDM: full create access" : "Limited by role");
+
+    const cadence = $("#ct_type").value;
+    $(".c_task_quarter").classList.toggle("hide", !(kind==="task" && cadence==="quarterly"));
+  }
+
+  function openModal(kind){
+    $("#modal").classList.remove("hide");
+    $("#c_type").value = kind;
+
+    $("#c_title").value = "";
+    $("#c_desc").value = "";
+
+    // task
+    $("#ct_type").value = "ad-hoc";
+    $("#ct_due").value = "";
+    $("#ct_quarter").value = "";
+    $("#ct_targetTeam").value = "";
+    $("#ct_targetStaff").value = "";
+    $("#ct_owner").value = "";
+
+    // project
+    $("#cp_status").value = "active";
+    $("#cp_owner").value = "";
+
+    // brief
+    $("#cb_path").value = "";
+
+    // team
+    $("#ctm_name").value = "";
+
+    showCreateSections(kind);
+  }
+  function closeModal(){ $("#modal").classList.add("hide"); }
+
+  async function createTask(){
+    if(me.mode!=="auth" || me.role!=="sndm") return toast("SNDM only");
+    const title=$("#c_title").value.trim();
+    if(!title) return toast("Title required");
+    const cadence=$("#ct_type").value;
+    const quarter = (cadence==="quarterly") ? ($("#ct_quarter").value||null) : null;
+    const dueIso = $("#ct_due").value ? new Date($("#ct_due").value).toISOString() : null;
+
+    const payload = {
+      title,
+      description: $("#c_desc").value.trim(),
+      task_type: cadence,
+      quarter,
+      due_at: (cadence==="quarterly") ? null : dueIso,
+      target_team_id: $("#ct_targetTeam").value || null,
+      target_staff_id: $("#ct_targetStaff").value || null,
+      owner_staff_id: $("#ct_owner").value || null,
+      created_by_user_id: me.user_id
+    };
+    if(payload.target_team_id && payload.target_staff_id) return toast("Pick team OR staff target");
+    const { error } = await sb.schema("cck").from("tasks").insert(payload);
+    if(error) return toast(error.message);
+    closeModal();
+    await loadTasks(); renderTasks(); toast("Task created");
+  }
+
+  async function createProject(){
+    if(me.mode!=="auth") return toast("Login required");
+    if(!(me.role==="sndm" || me.role==="rcm")) return toast("Not permitted");
+    const title=$("#c_title").value.trim();
+    if(!title) return toast("Title required");
+    const payload = {
+      title,
+      description: $("#c_desc").value.trim(),
+      status: $("#cp_status").value || "active",
+      owner_staff_id: $("#cp_owner").value || null,
+      created_by_user_id: me.user_id
+    };
+    const { error } = await sb.schema("cck").from("projects").insert(payload);
+    if(error) return toast(error.message);
+    closeModal();
+    await loadProjects(); renderProjects(); toast("Project created");
+  }
+
+  async function createBrief(){
+    if(me.mode!=="auth" || me.role!=="sndm") return toast("SNDM only");
+    const title=$("#c_title").value.trim();
+    if(!title) return toast("Title required");
+    const payload = {
+      title,
+      description: $("#c_desc").value.trim(),
+      file_path: $("#cb_path").value.trim() || null,
+      created_by_user_id: me.user_id
+    };
+    const { error } = await sb.schema("cck").from("briefs").insert(payload);
+    if(error) return toast(error.message);
+    closeModal();
+    await loadBriefs(); renderBriefs(); toast("Brief created");
+  }
+
+  async function createTeam(){
+    if(me.mode!=="auth" || me.role!=="sndm") return toast("SNDM only");
+    const name = ($("#ctm_name").value || $("#c_title").value).trim();
+    if(!name) return toast("Team name required");
+    const payload = { name, sndm_user_id: me.user_id };
+    const { error } = await sb.schema("cck").from("teams").insert(payload);
+    if(error) return toast(error.message);
+    closeModal();
+    await loadStaffTeams(); renderFilters(); toast("Team created");
+  }
+
+  async function doCreate(){
+    const kind=$("#c_type").value;
+    if(kind==="task") return createTask();
+    if(kind==="project") return createProject();
+    if(kind==="brief") return createBrief();
+    if(kind==="team") return createTeam();
+  }
+
   // Wiring
   $$(".tab").forEach(t=>t.addEventListener("click",()=>setTab(t.dataset.tab)));
   
@@ -562,9 +719,130 @@
 
   $("#refreshBtn").addEventListener("click",async ()=>{ await boot(); toast("Refreshed"); });
 
+  $("#createBtn").addEventListener("click",()=>{
+    const def = (activeTab==="projects") ? "project" : (activeTab==="briefs" ? "brief" : (activeTab==="teams" ? "team" : "task"));
+    if(me.mode!=="auth") return toast("Login required");
+    if(me.role==="rcm" && def!=="project") return toast("RCM can create projects only");
+    if(me.role!=="sndm" && me.role!=="rcm") return toast("Not permitted");
+    openModal(def);
+  });
+  $("#modalClose").addEventListener("click",closeModal);
+  $("#c_cancel").addEventListener("click",closeModal);
+  $("#modal").addEventListener("click",(e)=>{ if(e.target.id==="modal") closeModal(); });
+  $("#c_create").addEventListener("click",(e)=>{ e.preventDefault(); doCreate(); });
+  $("#c_type").addEventListener("change",(e)=>showCreateSections(e.target.value));
+  $("#ct_type").addEventListener("change",()=>showCreateSections($("#c_type").value));
+
   // Per blueprint: NO auto-refresh loops.
   sb = initSupabase();
   if(sb) boot();
-</script>
+});</script>
+
+<div id="modal" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 40px rgba(0,0,0,.25);max-width:820px;width:100%;padding:14px">
+    <div class="row space" style="align-items:flex-start">
+      <div>
+        <div style="font-weight:850;font-size:1rem" id="modalTitle">Create</div>
+        <div class="mini muted" id="modalHint">Create items based on your role</div>
+      </div>
+      <button class="ghost" id="modalClose">Close</button>
+    </div>
+    <div class="hr"></div>
+
+    <div class="row" style="gap:.8rem;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="min-width:220px">
+        <label>Create type</label>
+        <select id="c_type">
+          <option value="task">Task</option>
+          <option value="project">Project</option>
+          <option value="brief">Brief</option>
+          <option value="team">Team</option>
+        </select>
+      </div>
+
+      <div class="field c_task" style="min-width:220px">
+        <label>Task cadence</label>
+        <select id="ct_type">
+          <option value="ad-hoc">Ad-hoc</option>
+          <option value="dated">Dated</option>
+          <option value="quarterly">Quarterly</option>
+        </select>
+      </div>
+
+      <div class="field c_task" style="min-width:240px">
+        <label>Due date (optional)</label>
+        <input id="ct_due" type="datetime-local" />
+      </div>
+
+      <div class="field c_task c_task_quarter hide" style="min-width:180px">
+        <label>Quarter</label>
+        <select id="ct_quarter">
+          <option value="">Select…</option>
+          <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+        </select>
+      </div>
+
+      <div class="field c_project hide" style="min-width:200px">
+        <label>Status</label>
+        <select id="cp_status">
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="complete">Complete</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
+      <div class="field" style="flex:1;min-width:260px">
+        <label>Title</label>
+        <input id="c_title" placeholder="Title" />
+      </div>
+
+      <div class="field c_team hide" style="min-width:240px">
+        <label>Team name</label>
+        <input id="ctm_name" placeholder="e.g. Derby ROC Team A" />
+      </div>
+
+      <div class="field c_brief hide" style="min-width:260px;flex:1">
+        <label>File path (optional)</label>
+        <input id="cb_path" placeholder="Storage path, e.g. briefs/something.pdf" />
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:.6rem">
+      <label>Description</label>
+      <textarea id="c_desc" placeholder="What is this, in plain English"></textarea>
+    </div>
+
+    <div class="row c_task" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
+      <div class="field" style="min-width:220px;flex:1">
+        <label>Target Team (optional)</label>
+        <select id="ct_targetTeam"><option value="">None</option></select>
+      </div>
+      <div class="field" style="min-width:220px;flex:1">
+        <label>Target Staff (optional)</label>
+        <select id="ct_targetStaff"><option value="">None</option></select>
+      </div>
+      <div class="field" style="min-width:220px;flex:1">
+        <label>Owner (optional)</label>
+        <select id="ct_owner"><option value="">None</option></select>
+      </div>
+    </div>
+
+    <div class="row c_project hide" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
+      <div class="field" style="min-width:220px;flex:1">
+        <label>Owner (optional)</label>
+        <select id="cp_owner"><option value="">None</option></select>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+    <div class="row" style="justify-content:flex-end;gap:.5rem">
+      <button class="ghost" id="c_cancel">Cancel</button>
+      <button id="c_create">Create</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
