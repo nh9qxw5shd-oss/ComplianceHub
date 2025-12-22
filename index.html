@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Control Operational Compliance Keeper</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Control Operational Compliance Keeper - Tasks</title>
   <style>
-    :root{
+:root{
       --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
       --header:#111827; --headerText:#f9fafb; --border:#e5e7eb;
       --shadow:0 6px 18px rgba(0,0,0,.08); --radius:14px;
@@ -54,758 +54,176 @@
     .toast.show{display:block}
     .subtle{background:#f9fafb;border:1px dashed var(--border);padding:.75rem;border-radius:12px}
     a{color:#111827}
+  
+    .cols{
+      display:grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 1.25rem;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .cols{ grid-template-columns: 1fr; }
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
 <header>
-  <div>
-    <h1>Control Operational Compliance Keeper</h1>
-    <div class="env" id="envLine">GitHub Hosted UI · Supabase Backend (baked-in config)</div>
+  <div class="row" style="gap:.75rem">
+    <div style="font-weight:800">Control Operational Compliance Keeper</div>
+    <div class="mini muted">Tasks</div>
   </div>
-  <div class="right">
-    <div class="tabs">
-      <div class="tab active" data-tab="tasks">Tasks</div>
-      <div class="tab" data-tab="briefs">Briefing Hub</div>
-      <div class="tab" data-tab="projects">Projects</div>
-      <div class="tab" data-tab="teams" id="teamsTab">Teams</div>
+
+  <div class="row">
+    <div id="whoAmI" class="who mini">
+      <span class="dot grey"></span>
+      <span class="statusText">Not connected</span>
+      <span id="whoLabel" style="margin-left:.5rem" class="muted"></span>
     </div>
-    <button class="ghost" id="controllerBtn" title="Read-only access, except acknowledging briefs and recording completion where enabled">Controller access</button>
-    <button class="ghost" id="loginBtn">Login</button>
-    <button class="ghost hide" id="logoutBtn">Logout</button>
+    <button class="btn" id="loginBtnTop">SNDM Login</button>
+    <button class="btn ghost hide" id="logoutBtnTop">Logout</button>
+    <button class="btn hide" id="createBtnTop">Create Task</button>
   </div>
 </header>
 
 <main>
-  <div class="grid">
-    <section class="card">
+  <div class="cols">
+    <section class="card" id="tasksCard">
       <div class="row space">
-        <div>
-          <h2 id="panelTitle">Tasks</h2>
-          <div class="muted mini" id="panelSub">Default view shows all relevant items. Filters are secondary. No auto-refresh loops (manual refresh only).</div>
+        <h2 style="margin:0">Tasks</h2>
+        <button class="ghost" id="refreshBtn">Refresh</button>
+      </div>
+
+      <div class="row" style="flex-wrap:wrap;gap:.75rem;margin-top:.6rem">
+        <div class="field" style="min-width:210px;flex:1">
+          <label>Filter: Team</label>
+          <select id="filterTeam"><option value="">All</option></select>
         </div>
-        <div class="row">
-          <span class="pill" id="whoAmI"><span class="dot grey"></span><span class="mini">Not connected</span></span>
-          <button class="hide" id="createBtn">Create</button>
+        <div class="field" style="min-width:210px;flex:1">
+          <label>Filter: Staff</label>
+          <select id="filterStaff"><option value="">All</option></select>
+        </div>
+        <div class="field" style="min-width:160px">
+          <label>Status</label>
+          <select id="filterStatus">
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="complete">Complete</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:220px;flex:1">
+          <label>Search</label>
+          <input id="searchBox" placeholder="Title or description"/>
         </div>
       </div>
 
-      <div id="tab_tasks">
-        <div class="kpi" id="taskKpis">
-          <div class="box"><div class="big" id="kpiDue">0</div><div class="small">Open tasks</div></div>
-          <div class="box"><div class="big" id="kpiRed">0</div><div class="small">Red</div></div>
-          <div class="box"><div class="big" id="kpiAmber">0</div><div class="small">Amber</div></div>
-          <div class="box"><div class="big" id="kpiGreen">0</div><div class="small">Green</div></div>
-        </div>
-
-        <div class="hr"></div>
-
-        <div class="row">
-          <div class="field" style="min-width:220px">
-            <label>Filter: Team</label>
-            <select id="filterTeam"><option value="">All</option></select>
-          </div>
-          <div class="field" style="min-width:220px">
-            <label>Filter: Staff</label>
-            <select id="filterStaff"><option value="">All</option></select>
-          </div>
-          <div class="field" style="min-width:220px">
-            <label>Filter: Status</label>
-            <select id="filterStatus">
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="complete">Complete</option>
-            </select>
-          </div>
-          <div class="field" style="min-width:220px">
-            <label>Search</label>
-            <input id="searchBox" placeholder="Title / description" />
-          </div>
-          <div style="margin-left:auto" class="row">
-            <button class="ghost" id="refreshBtn">Refresh</button>
-          </div>
-        </div>
-
-        <div class="hr"></div>
-
-        <div style="overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:64px">RAG</th>
-                <th>Task</th>
-                <th style="width:140px">Due</th>
-                <th style="width:160px">Target</th>
-                <th style="width:160px">Owner</th>
-                <th style="width:170px">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="taskTbody"></tbody>
-          </table>
-        </div>
+      <div class="row" style="gap:.6rem;flex-wrap:wrap;margin-top:.6rem">
+        <span class="pill"><span class="dot red"></span><span class="mini">Overdue</span> <b id="kpiRed">0</b></span>
+        <span class="pill"><span class="dot amber"></span><span class="mini">Due soon</span> <b id="kpiAmber">0</b></span>
+        <span class="pill"><span class="dot green"></span><span class="mini">OK</span> <b id="kpiGreen">0</b></span>
+        <span class="pill"><span class="dot grey"></span><span class="mini">Open</span> <b id="kpiDue">0</b></span>
       </div>
 
-      <div id="tab_briefs" class="hide">
-        <div class="subtle mini">
-          Briefs can be uploaded by SNDM. Anyone can record “Read & understood” by selecting a name from the staff pool.
-        </div>
-        <div class="hr"></div>
-        <div style="overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:220px">Title</th>
-                <th>Description</th>
-                <th style="width:160px">Published</th>
-                <th style="width:220px">Read & understood</th>
-              </tr>
-            </thead>
-            <tbody id="briefTbody"></tbody>
-          </table>
-        </div>
-      </div>
+      <div class="hr"></div>
 
-      <div id="tab_projects" class="hide">
-        <div class="subtle mini">
-          Projects are non-compliance work, tracked for visibility. SNDM manages creation/status. Notes are append-only.
-        </div>
-        <div class="hr"></div>
-        <div style="overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:220px">Project</th>
-                <th>Description</th>
-                <th style="width:130px">Status</th>
-                <th style="width:180px">Owner</th>
-                <th style="width:170px">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="projTbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div id="tab_teams" class="hide">
-        <div class="subtle mini">
-          Teams are operational groupings used for targeting/filtering. Only SNDM can manage team setup and membership.
-        </div>
-        <div class="hr"></div>
-        <div id="teamsArea" class="mini muted">Login as SNDM to manage teams.</div>
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:84px">RAG</th>
+              <th>Task</th>
+              <th style="width:120px">Due</th>
+              <th style="width:200px">Target</th>
+              <th style="width:160px">Owner</th>
+              <th style="width:200px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="taskTbody"></tbody>
+        </table>
       </div>
     </section>
 
-    <aside class="card">
-      <h2>Actions</h2>
+    <aside class="card" id="actionsCard">
+      <div class="row space">
+        <div style="font-weight:850" id="detailTitle">Controller</div>
+        <span class="mini muted" id="detailSub"></span>
+      </div>
 
-      <div id="connCard" class="subtle hide">
-        <div class="mini muted">Supabase connection</div>
-        <div class="hr"></div>
-        <div class="field">
-          <label>Supabase URL</label>
-          <input id="sbUrl" placeholder="https://xxxxx.sb.co" />
+      <div id="controllerCard" style="margin-top:.6rem">
+        <div class="mini muted">Pick your name to complete tasks without logging in.</div>
+        <div class="row" style="gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
+          <div class="field" style="flex:1;min-width:220px">
+            <label>Controller</label>
+            <select id="controllerStaff"><option value="">Select…</option></select>
+          </div>
+          <button class="btn" id="enterController">Set</button>
+          <button class="btn ghost" id="exitController">Clear</button>
         </div>
-        <div class="field">
-          <label>Anon key (public)</label>
-          <input id="sbAnon" placeholder="eyJhbGciOi..." />
+      </div>
+
+      <div id="authCard" class="hide" style="margin-top:.8rem">
+        <div class="mini muted">SNDM login (create tasks, undo completions, add notes).</div>
+        <div class="row" style="gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
+          <div class="field" style="flex:1;min-width:220px">
+            <label>Email</label>
+            <input id="email" type="email" autocomplete="username"/>
+          </div>
+          <div class="field" style="flex:1;min-width:220px">
+            <label>Password</label>
+            <input id="pass" type="password" autocomplete="current-password"/>
+          </div>
         </div>
-        <div class="row" style="margin-top:.6rem">
-          <button id="saveConn">Save</button>
-          <button class="ghost" id="clearConn">Clear</button>
-        </div>
-        <div class="mini muted" style="margin-top:.6rem">
-          Saved in localStorage. Don’t paste a service role key into a public website unless you like free penetration testing.
+        <div class="row" style="justify-content:flex-end;margin-top:.5rem;gap:.5rem">
+          <button class="ghost" id="authCancel">Cancel</button>
+          <button class="btn" id="doLogin">Login</button>
         </div>
       </div>
 
       <div class="hr"></div>
 
-      <div id="loginCard" class="hide">
-        <div class="mini muted">SNDM / RCM login</div>
-        <div class="hr"></div>
-        <div class="field">
-          <label>Email</label>
-          <input id="email" type="email" placeholder="name@domain" />
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input id="pass" type="password" placeholder="••••••••" />
-        </div>
-        <div class="row" style="margin-top:.6rem">
-          <button id="doLogin">Login</button>
-        </div>
-      </div>
-
-      <div id="controllerCard" class="hide">
-        <div class="mini muted">Controller access (no login)</div>
-        <div class="hr"></div>
-        <div class="field">
-          <label>Select your name</label>
-          <select id="controllerStaff"><option value="">Select…</option></select>
-        </div>
-        <div class="row" style="margin-top:.6rem">
-          <button id="enterController">Enter</button>
-          <button class="ghost" id="exitController">Exit</button>
-        </div>
-        <div class="mini muted" style="margin-top:.6rem">
-          Controller mode is read-only visibility, plus “Read & understood” acknowledgements.
-        </div>
-      </div>
-
-      <div class="hr"></div>
-
-      <div id="detailCard" class="subtle">
-        <div class="mini muted" id="detailTitle">Select an item</div>
-        <div class="hr"></div>
-        <div id="detailBody" class="mini muted">Notes and actions will appear here.</div>
-      </div>
+      <div id="detailBody" class="mini muted">Select a task to view notes and actions.</div>
     </aside>
   </div>
 </main>
 
-<div class="toast" id="toast"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>window.addEventListener('DOMContentLoaded', () => {
-const $ = (q)=>document.querySelector(q);
-  const $$ = (q)=>Array.from(document.querySelectorAll(q));
-  const fmtDate = (iso)=> iso ? new Date(iso).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"2-digit"}) : "";
-  const daysUntil = (iso)=> iso ? Math.ceil((new Date(iso).getTime()-Date.now())/86400000) : null;
-  const toast = (msg)=>{ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2600); };
-  const escapeHtml = (s)=> (s??"").toString().replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-
-  const rag = (task, complete)=>{
-    if(complete) return "green";
-    if(!task.due_at) return "grey";
-    const d=daysUntil(task.due_at);
-    if(d<=0) return "red";
-    if(d<=7) return "amber";
-    return "green";
-  };
-
-  let sb=null;
-  let me={ mode:"none", role:null, staff_id:null, staff_name:null, user_id:null, display_name:null };
-  let activeTab = "tasks";
-  let cache={ staff:[], teams:[], tasks:[], taskNotes:[], taskCompletions:[], briefs:[], briefAck:[], projects:[], projectNotes:[] };
-
-    // ===== Supabase config (baked in) =====
-  // Put these in ONE place and stop pasting keys into UI fields like it's 2009.
-   const SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
-
-
-  function initSupabase(){
-    if(!window.supabase || !window.supabase.createClient){
-      $("#whoAmI").innerHTML = `<span class="dot red"></span><span class="mini">Supabase library blocked</span>`;
-      toast("Supabase JS library not loaded (likely blocked). Host it locally or allow the CDN.");
-      return null;
-    }
-
-    if(!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes("YOURPROJECT") || SUPABASE_ANON_KEY.includes("YOUR_")){
-      $("#whoAmI").innerHTML = `<span class="dot red"></span><span class="mini">Supabase not configured</span>`;
-      toast("Set SUPABASE_URL + SUPABASE_ANON_KEY in the HTML");
-      return null;
-    }
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    $("#whoAmI").innerHTML = `<span class="dot grey"></span><span class="mini">Connected</span>`;
-    return client;
-  }
-
-
-  async function hydrateProfile(){
-    const { data, error } = await sb.schema("cck").from("profiles").select("display_name,role").eq("user_id",me.user_id).single();
-    if(error){ me.role=null; me.display_name=null; return; }
-    me.role=data.role; me.display_name=data.display_name;
-  }
-
-  async function doLogin(){
-    if(!sb) return toast("Connect to Supabase first");
-    const email=$("#email").value.trim(), password=$("#pass").value;
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if(error) return toast(error.message);
-    me.mode="auth"; me.user_id=data.user.id;
-    await hydrateProfile(); await boot(); toast("Logged in");
-  }
-  async function doLogout(){
-    if(!sb) return;
-    await sb.auth.signOut();
-    me={ mode:"none", role:null, staff_id:null, staff_name:null, user_id:null, display_name:null };
-    $("#logoutBtn").classList.add("hide"); $("#loginBtn").classList.remove("hide");
-    $("#loginCard").classList.add("hide"); $("#controllerCard").classList.add("hide");
-    $("#createBtn").classList.add("hide");
-    $("#whoAmI").innerHTML=`<span class="dot grey"></span><span class="mini">Connected (anon)</span>`;
-    toast("Logged out"); await boot();
-  }
-
-  async function loadStaffTeams(){
-    const { data: staff } = await sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name");
-    const { data: teams } = await sb.schema("cck").from("teams").select("id,name").order("name");
-    cache.staff=staff||[]; cache.teams=teams||[];
-  }
-  async function loadTasks(){
-    const { data: tasks } = await sb.schema("cck").from("tasks")
-      .select("id,title,description,task_type,due_at,target_team_id,target_staff_id,owner_staff_id,linked_brief_id,created_at")
-      .order("due_at",{ascending:true,nullsFirst:false});
-    cache.tasks=tasks||[];
-    const ids=cache.tasks.map(t=>t.id);
-    if(!ids.length){ cache.taskNotes=[]; cache.taskCompletions=[]; return; }
-    const { data: notes } = await sb.schema("cck").from("task_notes").select("id,task_id,author_user_id,author_staff_id,note,created_at").in("task_id",ids).order("created_at",{ascending:false});
-    const { data: comps } = await sb.schema("cck").from("task_completions").select("id,task_id,completed,completed_at").in("task_id",ids).order("completed_at",{ascending:false});
-    cache.taskNotes=notes||[]; cache.taskCompletions=comps||[];
-  }
-  async function loadBriefs(){
-    const { data: briefs } = await sb.schema("cck").from("briefs").select("id,title,description,file_path,created_at").order("created_at",{ascending:false});
-    cache.briefs=briefs||[];
-    const ids=cache.briefs.map(b=>b.id);
-    if(!ids.length){ cache.briefAck=[]; return; }
-    const { data: ack } = await sb.schema("cck").from("brief_ack").select("id,brief_id,staff_id,ack_at").in("brief_id",ids);
-    cache.briefAck=ack||[];
-  }
-  async function loadProjects(){
-    const { data: projs } = await sb.schema("cck").from("projects").select("id,title,description,status,owner_staff_id,updated_at").order("updated_at",{ascending:false});
-    cache.projects=projs||[];
-    const ids=cache.projects.map(p=>p.id);
-    if(!ids.length){ cache.projectNotes=[]; return; }
-    const { data: notes } = await sb.schema("cck").from("project_notes").select("id,project_id,note,created_at").in("project_id",ids).order("created_at",{ascending:false});
-    cache.projectNotes=notes||[];
-  }
-
-  const nameForStaff=(id)=> (cache.staff.find(s=>s.id===id)||{}).display_name||"";
-  const nameForTeam=(id)=> (cache.teams.find(t=>t.id===id)||{}).name||"";
-  const isTaskComplete=(task_id)=> {
-    const c = cache.taskCompletions.find(x=>x.task_id===task_id);
-    if(!c) return false;
-    return (c.completed===undefined) ? true : !!c.completed;
-  };
-
-  function renderFilters(){
-    const ft=$("#filterTeam"), fs=$("#filterStaff"), cs=$("#controllerStaff"), mt=$("#ct_targetTeam"), ms=$("#ct_targetStaff"), mo=$("#ct_owner"), cpo=$("#cp_owner");
-    const t0=ft.value, s0=fs.value, c0=cs.value, mt0=mt.value, ms0=ms.value, mo0=mo.value, cpo0=cpo.value;
-    ft.innerHTML=`<option value="">All</option>`+cache.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
-    fs.innerHTML=`<option value="">All</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
-    cs.innerHTML=`<option value="">Select…</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
-    mt.innerHTML=`<option value="">None</option>`+cache.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
-    ms.innerHTML=`<option value="">None</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
-    mo.innerHTML=`<option value="">None</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
-    cpo.innerHTML=`<option value="">None</option>`+cache.staff.map(s=>`<option value="${s.id}">${s.display_name}</option>`).join("");
-    ft.value=t0; fs.value=s0; cs.value=c0; mt.value=mt0; ms.value=ms0; mo.value=mo0; cpo.value=cpo0;
-  }
-
-  function renderTaskKpis(rows){
-    const open=rows.filter(r=>!r.complete);
-    $("#kpiDue").textContent=open.length;
-    $("#kpiRed").textContent=open.filter(r=>r.rag==="red").length;
-    $("#kpiAmber").textContent=open.filter(r=>r.rag==="amber").length;
-    $("#kpiGreen").textContent=open.filter(r=>r.rag==="green").length;
-  }
-
-  function renderTasks(){
-    const ft=$("#filterTeam").value, fs=$("#filterStaff").value, st=$("#filterStatus").value, q=$("#searchBox").value.trim().toLowerCase();
-    const rows=cache.tasks.map(t=>({t, complete:isTaskComplete(t.id)})).map(r=>({...r, rag:rag(r.t,r.complete)})).filter(r=>{
-      if(ft && r.t.target_team_id!==ft) return false;
-      if(fs && r.t.target_staff_id!==fs && r.t.owner_staff_id!==fs) return false;
-      if(st==="open" && r.complete) return false;
-      if(st==="complete" && !r.complete) return false;
-      if(q && !(`${r.t.title||""} ${r.t.description||""}`.toLowerCase().includes(q))) return false;
-      return true;
-    });
-    renderTaskKpis(rows);
-    $("#taskTbody").innerHTML=rows.map(r=>{
-      const due = (r.t.task_type==="quarterly" && r.t.quarter) ? r.t.quarter : (r.t.due_at ? fmtDate(r.t.due_at) : "");
-      const target=r.t.target_team_id?`Team: ${nameForTeam(r.t.target_team_id)}`:r.t.target_staff_id?`Staff: ${nameForStaff(r.t.target_staff_id)}`:"All";
-      const owner=nameForStaff(r.t.owner_staff_id)||"";
-      const pill=`<span class="pill"><span class="dot ${r.rag}"></span><span>${r.rag.toUpperCase()}</span></span>`;
-      const canAuth = (me.mode==="auth");
-      const canCtrl = (me.mode==="controller" && me.staff_id);
-      const canAct = canAuth || canCtrl;
-      const act = r.complete
-        ? (canAuth ? `<button class="ghost" data-action="undo" data-id="${r.t.id}">Undo</button>` : `<span class="muted mini">Completed</span>`)
-        : (canAct ? `<button data-action="complete" data-id="${r.t.id}">Complete</button>` : `<span class="muted mini">Login to action</span>`);
-      return `<tr data-open="${r.t.id}">
-        <td>${pill}</td>
-        <td><div style="font-weight:750">${escapeHtml(r.t.title||"")}</div><div class="muted mini">${escapeHtml(r.t.description||"")}</div></td>
-        <td>${due}</td><td>${escapeHtml(target)}</td><td>${escapeHtml(owner)}</td><td>${act}</td>
-      </tr>`;
-    }).join("");
-    $$("#taskTbody button[data-action='complete']").forEach(b=>b.addEventListener("click", async (e)=>{ e.stopPropagation(); await toggleTaskComplete(b.dataset.id); }));
-    $$("#taskTbody button[data-action='undo']").forEach(b=>b.addEventListener("click", async (e)=>{ e.stopPropagation(); await toggleTaskComplete(b.dataset.id); }));
-    $$("#taskTbody tr").forEach(tr=>tr.addEventListener("click",(e)=>{ if(e.target?.dataset?.action) return; openTaskDetail(tr.dataset.open); }));
-  }
-
-  function renderBriefs(){
-    $("#briefTbody").innerHTML=cache.briefs.map(b=>{
-      const created=fmtDate(b.created_at);
-      const acks=cache.briefAck.filter(a=>a.brief_id===b.id).map(a=>nameForStaff(a.staff_id)).filter(Boolean);
-      const ackLine=acks.length?`<div class="mini">${acks.slice(0,5).join(", ")}${acks.length>5?"…":""}</div>`:`<div class="mini muted">No acks yet</div>`;
-      const canAck=(me.mode==="controller" && me.staff_id);
-      const ackBtn=canAck?`<button class="ghost mini" data-ack="${b.id}">Acknowledge</button>`:`<span class="muted mini">Use controller access</span>`;
-      const link=b.file_path?`<a href="#" data-openbrief="${b.id}">Open</a>`:"";
-      return `<tr>
-        <td><div style="font-weight:750">${escapeHtml(b.title||"")}</div><div class="mini">${link}</div></td>
-        <td class="mini">${escapeHtml(b.description||"")}</td>
-        <td class="mini">${created}</td>
-        <td>${ackLine}<div style="margin-top:.35rem">${ackBtn}</div></td>
-      </tr>`;
-    }).join("");
-    $$("#briefTbody button[data-ack]").forEach(btn=>btn.addEventListener("click", async ()=>{ await acknowledgeBrief(btn.dataset.ack); }));
-    $$("#briefTbody a[data-openbrief]").forEach(a=>a.addEventListener("click", async (e)=>{ e.preventDefault(); await openBriefFile(a.dataset.openbrief); }));
-  }
-
-  function renderProjects(){
-    $("#projTbody").innerHTML=cache.projects.map(p=>{
-      const owner=nameForStaff(p.owner_staff_id);
-      const canNote=(me.mode==="auth" || (me.mode==="controller" && me.staff_id));
-      const act=canNote?`<button class="ghost mini" data-pnote="${p.id}">Add note</button>`:`<span class="muted mini">Login / controller access</span>`;
-      return `<tr data-proj="${p.id}">
-        <td><div style="font-weight:750">${escapeHtml(p.title||"")}</div></td>
-        <td class="mini">${escapeHtml(p.description||"")}</td>
-        <td><span class="pill"><span class="dot grey"></span><span>${escapeHtml(p.status||"")}</span></span></td>
-        <td class="mini">${escapeHtml(owner)}</td>
-        <td>${act}</td>
-      </tr>`;
-    }).join("");
-    $$("#projTbody button[data-pnote]").forEach(btn=>btn.addEventListener("click", async (e)=>{ e.stopPropagation(); await addProjectNote(btn.dataset.pnote); }));
-  }
-
-  function applyRole(){
-    // Blueprint: Teams managed by SNDM only; RCM can’t see/edit team setup.
-    if(me.mode==="auth" && me.role==="sndm") $("#teamsTab").classList.remove("hide");
-    else $("#teamsTab").classList.add("hide");
-
-    if(me.mode==="auth"){
-      const canCreate = (me.role==="sndm") || (me.role==="rcm" && activeTab==="projects");
-      $("#createBtn").classList.toggle("hide", !canCreate);
-      $("#createBtn").textContent = (me.role==="rcm" && activeTab==="projects") ? "Create project" : "Create";
-      const dot=me.role==="sndm"?"green":"amber";
-      $("#whoAmI").innerHTML=`<span class="dot ${dot}"></span><span class="mini">${escapeHtml(me.display_name||"User")} (${me.role||"auth"})</span>`;
-      $("#logoutBtn").classList.remove("hide"); $("#loginBtn").classList.add("hide");
-    } else if(me.mode==="controller"){
-      $("#whoAmI").innerHTML=`<span class="dot grey"></span><span class="mini">${escapeHtml(me.staff_name||"Controller")} (controller)</span>`;
-      $("#logoutBtn").classList.add("hide"); $("#loginBtn").classList.remove("hide");
-    } else {
-      $("#whoAmI").innerHTML=`<span class="dot grey"></span><span class="mini">Connected (anon)</span>`;
-      $("#logoutBtn").classList.add("hide"); $("#loginBtn").classList.remove("hide");
-    }
-  }
-
-  function setTab(tab){
-    activeTab = tab;
-    $$(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===tab));
-    $("#tab_tasks").classList.toggle("hide",tab!=="tasks");
-    $("#tab_briefs").classList.toggle("hide",tab!=="briefs");
-    $("#tab_projects").classList.toggle("hide",tab!=="projects");
-    $("#tab_teams").classList.toggle("hide",tab!=="teams");
-    $("#panelTitle").textContent={tasks:"Tasks",briefs:"Briefing Hub",projects:"Projects",teams:"Teams"}[tab]||"Dashboard";
-    applyRole();
-  }
-
-  async function toggleTaskComplete(task_id){
-    const complete = isTaskComplete(task_id);
-    if(complete){
-      if(me.mode!=="auth") return toast("Login required");
-      const { error } = await sb.schema("cck").from("task_completions").delete().eq("task_id", task_id);
-      if(error) return toast(error.message);
-      await loadTasks(); renderTasks(); return toast("Completion reversed");
-    }
-    const payload = me.mode==="auth"
-      ? { task_id, completed:true, completed_by_user_id: me.user_id }
-      : { task_id, completed:true, completed_by_staff_id: me.staff_id };
-    const { error } = await sb.schema("cck").from("task_completions").upsert(payload, { onConflict: "task_id" });
-    if(error) return toast(error.message);
-    await loadTasks(); renderTasks(); toast("Marked complete");
-  }
-
-  async function acknowledgeBrief(brief_id){
-    if(me.mode!=="controller" || !me.staff_id) return toast("Enter controller mode and pick your name");
-    const { error } = await sb.schema("cck").from("brief_ack").insert({ brief_id, staff_id: me.staff_id });
-    if(error) return toast(error.message);
-    await loadBriefs(); renderBriefs(); toast("Acknowledged");
-  }
-
-  function getPublicStorageUrl(file_path){
-    const base=SUPABASE_URL;
-    if(!base || !file_path) return null;
-    let obj=file_path.startsWith("briefs/")?file_path.slice(7):file_path;
-    return `${base}/storage/v1/object/public/briefs/${encodeURIComponent(obj).replaceAll("%2F","/")}`;
-  }
-  async function openBriefFile(brief_id){
-    const b=cache.briefs.find(x=>x.id===brief_id); if(!b) return;
-    const url=getPublicStorageUrl(b.file_path);
-    if(!url) return toast("No file path / storage URL");
-    window.open(url,"_blank");
-  }
-
-  async function addProjectNote(project_id){
-    const note=prompt("Add project note (keep it short):"); if(!note?.trim()) return;
-    const payload = me.mode==="auth"
-      ? { project_id, note: note.trim(), author_user_id: me.user_id }
-      : { project_id, note: note.trim(), author_staff_id: me.staff_id };
-    const { error } = await sb.schema("cck").from("project_notes").insert(payload);
-    if(error) return toast(error.message);
-    await loadProjects(); renderProjects(); toast("Note added");
-  }
-
-  function openTaskDetail(task_id){
-    const t=cache.tasks.find(x=>x.id===task_id); if(!t) return;
-    const complete=isTaskComplete(task_id);
-    const target=t.target_team_id?`Team: ${nameForTeam(t.target_team_id)}`:t.target_staff_id?`Staff: ${nameForStaff(t.target_staff_id)}`:"All";
-    const owner=nameForStaff(t.owner_staff_id)||"—";
-    const due=t.due_at?fmtDate(t.due_at):"—";
-    const ragc=rag(t,complete);
-    $("#detailTitle").textContent=`Task: ${t.title}`;
-    $("#detailBody").innerHTML=`<div class="row" style="justify-content:space-between;margin-bottom:.4rem">
-        <span class="pill"><span class="dot ${ragc}"></span><span>${ragc.toUpperCase()}</span></span>
-        <span class="mini muted">${complete?"Completed":"Open"}</span>
-      </div>
-      <div class="mini"><b>Due:</b> ${escapeHtml(due)} · <b>Target:</b> ${escapeHtml(target)} · <b>Owner:</b> ${escapeHtml(owner)}</div>`;
-  }
-
-  async function boot(){
-    if(!sb) return;
-    const { data: sess } = await sb.auth.getSession();
-    if(sess?.session?.user){
-      me.mode="auth"; me.user_id=sess.session.user.id;
-      await hydrateProfile();
-    } else if(me.mode!=="controller"){
-      me.mode="none"; me.user_id=null; me.role=null; me.display_name=null;
-    }
-    applyRole();
-
-    await loadStaffTeams(); renderFilters();
-    await Promise.all([loadTasks(), loadBriefs(), loadProjects()]);
-    renderTasks(); renderBriefs(); renderProjects();
-  }
-
-  
-  // ---------- Create modal (role-gated in UI) ----------
-  function showCreateSections(kind){
-    $$(".c_task").forEach(el=>el.classList.toggle("hide", kind!=="task"));
-    $$(".c_project").forEach(el=>el.classList.toggle("hide", kind!=="project"));
-    $$(".c_brief").forEach(el=>el.classList.toggle("hide", kind!=="brief"));
-    $$(".c_team").forEach(el=>el.classList.toggle("hide", kind!=="team"));
-    $("#modalTitle").textContent = "Create " + ({task:"Task",project:"Project",brief:"Brief",team:"Team"}[kind]||"Item");
-    $("#modalHint").textContent =
-      (kind==="project" && me.role==="rcm") ? "RCM allowed: create projects" :
-      (me.role==="sndm" ? "SNDM: full create access" : "Limited by role");
-
-    const cadence = $("#ct_type").value;
-    $(".c_task_quarter").classList.toggle("hide", !(kind==="task" && cadence==="quarterly"));
-  }
-
-  function openModal(kind){
-    $("#modal").classList.remove("hide");
-    $("#c_type").value = kind;
-
-    $("#c_title").value = "";
-    $("#c_desc").value = "";
-
-    // task
-    $("#ct_type").value = "ad-hoc";
-    $("#ct_due").value = "";
-    $("#ct_quarter").value = "";
-    $("#ct_targetTeam").value = "";
-    $("#ct_targetStaff").value = "";
-    $("#ct_owner").value = "";
-
-    // project
-    $("#cp_status").value = "active";
-    $("#cp_owner").value = "";
-
-    // brief
-    $("#cb_path").value = "";
-
-    // team
-    $("#ctm_name").value = "";
-
-    showCreateSections(kind);
-  }
-  function closeModal(){ $("#modal").classList.add("hide"); }
-
-  async function createTask(){
-    if(me.mode!=="auth" || me.role!=="sndm") return toast("SNDM only");
-    const title=$("#c_title").value.trim();
-    if(!title) return toast("Title required");
-    const cadence=$("#ct_type").value;
-    const quarter = (cadence==="quarterly") ? ($("#ct_quarter").value||null) : null;
-    const dueIso = $("#ct_due").value ? new Date($("#ct_due").value).toISOString() : null;
-
-    const payload = {
-      title,
-      description: $("#c_desc").value.trim(),
-      task_type: cadence,
-      quarter,
-      due_at: (cadence==="quarterly") ? null : dueIso,
-      target_team_id: $("#ct_targetTeam").value || null,
-      target_staff_id: $("#ct_targetStaff").value || null,
-      owner_staff_id: $("#ct_owner").value || null,
-      created_by_user_id: me.user_id
-    };
-    if(payload.target_team_id && payload.target_staff_id) return toast("Pick team OR staff target");
-    const { error } = await sb.schema("cck").from("tasks").insert(payload);
-    if(error) return toast(error.message);
-    closeModal();
-    await loadTasks(); renderTasks(); toast("Task created");
-  }
-
-  async function createProject(){
-    if(me.mode!=="auth") return toast("Login required");
-    if(!(me.role==="sndm" || me.role==="rcm")) return toast("Not permitted");
-    const title=$("#c_title").value.trim();
-    if(!title) return toast("Title required");
-    const payload = {
-      title,
-      description: $("#c_desc").value.trim(),
-      status: $("#cp_status").value || "active",
-      owner_staff_id: $("#cp_owner").value || null,
-      created_by_user_id: me.user_id
-    };
-    const { error } = await sb.schema("cck").from("projects").insert(payload);
-    if(error) return toast(error.message);
-    closeModal();
-    await loadProjects(); renderProjects(); toast("Project created");
-  }
-
-  async function createBrief(){
-    if(me.mode!=="auth" || me.role!=="sndm") return toast("SNDM only");
-    const title=$("#c_title").value.trim();
-    if(!title) return toast("Title required");
-    const payload = {
-      title,
-      description: $("#c_desc").value.trim(),
-      file_path: $("#cb_path").value.trim() || null,
-      created_by_user_id: me.user_id
-    };
-    const { error } = await sb.schema("cck").from("briefs").insert(payload);
-    if(error) return toast(error.message);
-    closeModal();
-    await loadBriefs(); renderBriefs(); toast("Brief created");
-  }
-
-  async function createTeam(){
-    if(me.mode!=="auth" || me.role!=="sndm") return toast("SNDM only");
-    const name = ($("#ctm_name").value || $("#c_title").value).trim();
-    if(!name) return toast("Team name required");
-    const payload = { name, sndm_user_id: me.user_id };
-    const { error } = await sb.schema("cck").from("teams").insert(payload);
-    if(error) return toast(error.message);
-    closeModal();
-    await loadStaffTeams(); renderFilters(); toast("Team created");
-  }
-
-  async function doCreate(){
-    const kind=$("#c_type").value;
-    if(kind==="task") return createTask();
-    if(kind==="project") return createProject();
-    if(kind==="brief") return createBrief();
-    if(kind==="team") return createTeam();
-  }
-
-  // Wiring
-  $$(".tab").forEach(t=>t.addEventListener("click",()=>setTab(t.dataset.tab)));
-  
-  $("#loginBtn").addEventListener("click",()=>{ $("#loginCard").classList.toggle("hide"); $("#controllerCard").classList.add("hide"); });
-  $("#controllerBtn").addEventListener("click",()=>{ $("#controllerCard").classList.toggle("hide"); $("#loginCard").classList.add("hide"); });
-
-  $("#doLogin").addEventListener("click",doLogin);
-  $("#logoutBtn").addEventListener("click",doLogout);
-
-  $("#enterController").addEventListener("click",async ()=>{
-    const staff_id=$("#controllerStaff").value;
-    const staff=cache.staff.find(s=>s.id===staff_id);
-    if(!staff_id||!staff) return toast("Pick your name");
-    me.mode="controller"; me.role="controller"; me.staff_id=staff_id; me.staff_name=staff.display_name;
-    applyRole(); toast("Controller mode enabled"); await boot();
-  });
-  $("#exitController").addEventListener("click",()=>{ me.mode="none"; me.role=null; me.staff_id=null; me.staff_name=null; applyRole(); boot(); });
-
-  $("#refreshBtn").addEventListener("click",async ()=>{ await boot(); toast("Refreshed"); });
-
-  $("#createBtn").addEventListener("click",()=>{
-    const def = (activeTab==="projects") ? "project" : (activeTab==="briefs" ? "brief" : (activeTab==="teams" ? "team" : "task"));
-    if(me.mode!=="auth") return toast("Login required");
-    if(me.role==="rcm" && def!=="project") return toast("RCM can create projects only");
-    if(me.role!=="sndm" && me.role!=="rcm") return toast("Not permitted");
-    openModal(def);
-  });
-  $("#modalClose").addEventListener("click",closeModal);
-  $("#c_cancel").addEventListener("click",closeModal);
-  $("#modal").addEventListener("click",(e)=>{ if(e.target.id==="modal") closeModal(); });
-  $("#c_create").addEventListener("click",(e)=>{ e.preventDefault(); doCreate(); });
-  $("#c_type").addEventListener("change",(e)=>showCreateSections(e.target.value));
-  $("#ct_type").addEventListener("change",()=>showCreateSections($("#c_type").value));
-
-  // Per blueprint: NO auto-refresh loops.
-  sb = initSupabase();
-  if(sb) boot();
-});</script>
-
-<div id="modal" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px">
-  <div style="background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 40px rgba(0,0,0,.25);max-width:820px;width:100%;padding:14px">
+<div id="createModal" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px">
+  <div class="card" style="max-width:860px;width:100%">
     <div class="row space" style="align-items:flex-start">
       <div>
-        <div style="font-weight:850;font-size:1rem" id="modalTitle">Create</div>
-        <div class="mini muted" id="modalHint">Create items based on your role</div>
+        <div style="font-weight:850;font-size:1rem">Create task</div>
+        <div class="mini muted">SNDM only</div>
       </div>
-      <button class="ghost" id="modalClose">Close</button>
+      <button class="ghost" id="c_cancel">Close</button>
     </div>
+
     <div class="hr"></div>
 
     <div class="row" style="gap:.8rem;flex-wrap:wrap;align-items:flex-end">
       <div class="field" style="min-width:220px">
-        <label>Create type</label>
+        <label>Task type</label>
         <select id="c_type">
-          <option value="task">Task</option>
-          <option value="project">Project</option>
-          <option value="brief">Brief</option>
-          <option value="team">Team</option>
-        </select>
-      </div>
-
-      <div class="field c_task" style="min-width:220px">
-        <label>Task cadence</label>
-        <select id="ct_type">
-          <option value="ad-hoc">Ad-hoc</option>
+          <option value="adhoc">Ad-hoc</option>
           <option value="dated">Dated</option>
           <option value="quarterly">Quarterly</option>
         </select>
       </div>
 
-      <div class="field c_task" style="min-width:240px">
-        <label>Due date (optional)</label>
-        <input id="ct_due" type="datetime-local" />
+      <div class="field hide" style="min-width:240px" id="dueWrap">
+        <label>Due date</label>
+        <input id="ct_due" type="date"/>
       </div>
 
-      <div class="field c_task c_task_quarter hide" style="min-width:180px">
+      <div class="field hide" style="min-width:220px" id="qWrap">
         <label>Quarter</label>
-        <select id="ct_quarter">
-          <option value="">Select…</option>
-          <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
-        </select>
-      </div>
-
-      <div class="field c_project hide" style="min-width:200px">
-        <label>Status</label>
-        <select id="cp_status">
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="complete">Complete</option>
-        </select>
+        <input id="ct_quarter" placeholder="e.g. 2026 Q1"/>
       </div>
     </div>
 
     <div class="row" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
       <div class="field" style="flex:1;min-width:260px">
         <label>Title</label>
-        <input id="c_title" placeholder="Title" />
-      </div>
-
-      <div class="field c_team hide" style="min-width:240px">
-        <label>Team name</label>
-        <input id="ctm_name" placeholder="e.g. Derby ROC Team A" />
-      </div>
-
-      <div class="field c_brief hide" style="min-width:260px;flex:1">
-        <label>File path (optional)</label>
-        <input id="cb_path" placeholder="Storage path, e.g. briefs/something.pdf" />
+        <input id="c_title" placeholder="Title"/>
       </div>
     </div>
 
@@ -814,35 +232,429 @@ const $ = (q)=>document.querySelector(q);
       <textarea id="c_desc" placeholder="What is this, in plain English"></textarea>
     </div>
 
-    <div class="row c_task" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
+    <div class="row" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
       <div class="field" style="min-width:220px;flex:1">
-        <label>Target Team (optional)</label>
+        <label>Target Team</label>
         <select id="ct_targetTeam"><option value="">None</option></select>
       </div>
       <div class="field" style="min-width:220px;flex:1">
-        <label>Target Staff (optional)</label>
+        <label>Target Staff</label>
         <select id="ct_targetStaff"><option value="">None</option></select>
       </div>
       <div class="field" style="min-width:220px;flex:1">
-        <label>Owner (optional)</label>
+        <label>Owner</label>
         <select id="ct_owner"><option value="">None</option></select>
-      </div>
-    </div>
-
-    <div class="row c_project hide" style="gap:.8rem;flex-wrap:wrap;margin-top:.6rem">
-      <div class="field" style="min-width:220px;flex:1">
-        <label>Owner (optional)</label>
-        <select id="cp_owner"><option value="">None</option></select>
       </div>
     </div>
 
     <div class="hr"></div>
     <div class="row" style="justify-content:flex-end;gap:.5rem">
-      <button class="ghost" id="c_cancel">Cancel</button>
-      <button id="c_create">Create</button>
+      <button class="ghost" id="c_cancel2">Cancel</button>
+      <button class="btn" id="c_create">Create</button>
     </div>
   </div>
 </div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  // ========= BAKED SUPABASE CONFIG (edit here only) =========
+  window.SUPABASE_URL = "https://ungtmfwxqawkdiflmora.supabase.co";
+  window.SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
+
+  const $ = (q)=>document.querySelector(q);
+  const toast = (msg)=>{
+    const t=$("#toast"); if(!t) return alert(msg);
+    t.textContent=msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"), 2600);
+  };
+  const escapeHtml = (s)=>String(s??"").replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+  const fmtDate = (iso)=>{
+    if(!iso) return "";
+    const d=new Date(iso);
+    if(isNaN(d)) return "";
+    return d.toISOString().slice(0,10);
+  };
+  const quarterToDate = (q)=>{
+    const m = String(q||"").match(/(\d{4})\s*Q([1-4])/i);
+    if(!m) return null;
+    const y=Number(m[1]), qq=Number(m[2]);
+    const endMonth = qq*3;
+    return new Date(Date.UTC(y, endMonth, 0, 23,59,59));
+  };
+  const rag = (task, complete)=>{
+    if(complete) return "green";
+    const now = new Date();
+    const due = (task.task_type==="quarterly" && task.quarter) ? quarterToDate(task.quarter)
+              : (task.due_at ? new Date(task.due_at) : null);
+    if(!due || isNaN(due)) return "amber";
+    const diffDays = Math.floor((due - now)/86400000);
+    if(diffDays < 0) return "red";
+    if(diffDays <= 3) return "amber";
+    return "green";
+  };
+
+  let sb = null;
+  const me = { mode: "controller", user_id: null, role: null, display_name: null, staff_id: null };
+  const cache = { teams: [], staff: [], tasks: [], notesByTask: new Map(), compByTask: new Map() };
+  let selectedTaskId = null;
+
+  function canConnect(){
+    return (typeof window.SUPABASE_URL === "string" && window.SUPABASE_URL.length > 10) &&
+           (typeof window.SUPABASE_ANON === "string" && window.SUPABASE_ANON.length > 20) &&
+           !window.SUPABASE_ANON.includes("YOUR_REAL_ANON");
+  }
+  function setConn(ok){
+    const dot = document.querySelector("header .dot");
+    const text = document.querySelector("header .statusText");
+    if(dot) dot.className = "dot " + (ok ? "green" : "grey");
+    if(text) text.textContent = ok ? "Connected" : "Not connected";
+  }
+  function initSupabase(){
+    if(!canConnect()){ setConn(false); toast("Supabase anon key not set (edit window.SUPABASE_ANON in the HTML)."); return null; }
+    if(!window.supabase || !window.supabase.createClient){ setConn(false); toast("Supabase JS failed to load"); return null; }
+    sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON, {
+      auth: { persistSession:false, autoRefreshToken:false, detectSessionInUrl:false }
+    });
+    return sb;
+  }
+
+  async function loadReference(){
+    const [teamsRes, staffRes] = await Promise.all([
+      sb.schema("cck").from("teams").select("id,name").order("name"),
+      sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name")
+    ]);
+    if(teamsRes.error) throw teamsRes.error;
+    if(staffRes.error) throw staffRes.error;
+    cache.teams = teamsRes.data || [];
+    cache.staff = staffRes.data || [];
+  }
+
+  async function loadTasks(){
+    const res = await sb.schema("cck").from("tasks")
+      .select("id,title,description,task_type,due_at,quarter,target_team_id,target_staff_id,owner_staff_id,created_at")
+      .order("created_at", { ascending:false });
+    if(res.error) throw res.error;
+    cache.tasks = res.data || [];
+
+    const ids = cache.tasks.map(t=>t.id);
+    cache.notesByTask = new Map();
+    cache.compByTask = new Map();
+
+    if(ids.length){
+      const [notesRes, compRes] = await Promise.all([
+        sb.schema("cck").from("task_notes")
+          .select("id,task_id,note,author_user_id,created_at")
+          .in("task_id", ids).order("created_at", { ascending:false }),
+        sb.schema("cck").from("task_completions")
+          .select("task_id,completed,completed_at,completed_by_user_id")
+          .or(ids.map(id=>`task_id.eq.${id}`).join(","))
+      ]);
+      if(notesRes.error) throw notesRes.error;
+      if(compRes.error) throw compRes.error;
+
+      (notesRes.data||[]).forEach(n=>{
+        const arr = cache.notesByTask.get(n.task_id) || [];
+        arr.push(n);
+        cache.notesByTask.set(n.task_id, arr);
+      });
+      (compRes.data||[]).forEach(c=>cache.compByTask.set(c.task_id, c));
+    }
+  }
+
+  function nameForTeam(id){ return (cache.teams.find(t=>t.id===id)?.name)||""; }
+  function nameForStaff(id){ return (cache.staff.find(s=>s.id===id)?.display_name)||""; }
+  function isTaskComplete(task_id){ return !!(cache.compByTask.get(task_id)?.completed); }
+
+  function renderFilters(){
+    $("#filterTeam").innerHTML = `<option value="">All</option>` + cache.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+    $("#filterStaff").innerHTML = `<option value="">All</option>` + cache.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join("");
+    $("#controllerStaff").innerHTML = `<option value="">Select…</option>` + cache.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join("");
+
+    $("#ct_targetTeam").innerHTML = `<option value="">None</option>` + cache.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+    $("#ct_targetStaff").innerHTML = `<option value="">None</option>` + cache.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join("");
+    $("#ct_owner").innerHTML = `<option value="">None</option>` + cache.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join("");
+  }
+
+  function renderTaskKpis(rows){
+    const open = rows.filter(r=>!r.complete);
+    $("#kpiDue").textContent = open.length;
+    $("#kpiRed").textContent = open.filter(r=>r.rag==="red").length;
+    $("#kpiAmber").textContent = open.filter(r=>r.rag==="amber").length;
+    $("#kpiGreen").textContent = open.filter(r=>r.rag==="green").length;
+  }
+
+  function renderTasks(){
+    const ft=$("#filterTeam").value;
+    const fs=$("#filterStaff").value;
+    const st=$("#filterStatus").value;
+    const q=$("#searchBox").value.trim().toLowerCase();
+
+    const rows = (cache.tasks||[])
+      .map(t=>({ t, complete: isTaskComplete(t.id) }))
+      .map(r=>({ ...r, rag: rag(r.t, r.complete) }))
+      .filter(r=>{
+        if(ft && r.t.target_team_id !== ft) return false;
+        if(fs && r.t.target_staff_id !== fs && r.t.owner_staff_id !== fs) return false;
+        if(st==="open" && r.complete) return false;
+        if(st==="complete" && !r.complete) return false;
+        if(q){
+          const hay = `${(r.t.title||"")} ${(r.t.description||"")}`.toLowerCase();
+          if(!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+    renderTaskKpis(rows);
+
+    $("#taskTbody").innerHTML = rows.map(r=>{
+      const due = (r.t.task_type==="quarterly" && r.t.quarter) ? r.t.quarter : (r.t.due_at ? fmtDate(r.t.due_at) : "");
+      const target = r.t.target_team_id ? `Team: ${escapeHtml(nameForTeam(r.t.target_team_id))}`
+        : (r.t.target_staff_id ? `Staff: ${escapeHtml(nameForStaff(r.t.target_staff_id))}` : "All");
+      const owner = escapeHtml(nameForStaff(r.t.owner_staff_id)||"");
+      const pill = `<span class="pill"><span class="dot ${r.rag}"></span><span>${r.rag.toUpperCase()}</span></span>`;
+
+      const canCtrl = (me.mode==="controller" && me.staff_id);
+      const canAuth = (me.mode==="auth" && me.user_id);
+
+      const btnOpen = `<button class="btn sm ghost" data-act="open" data-id="${r.t.id}">Open</button>`;
+      const btnComplete = (!r.complete && canCtrl) ? `<button class="btn sm" data-act="complete" data-id="${r.t.id}">Complete</button>` : (r.complete?`<span class="mini muted">Done</span>`:"");
+      const btnUndo = (r.complete && canAuth) ? `<button class="btn sm ghost" data-act="undo" data-id="${r.t.id}">Undo</button>` : "";
+
+      return `<tr data-id="${r.t.id}">
+        <td>${pill}</td>
+        <td><div class="tTitle">${escapeHtml(r.t.title||"")}</div><div class="mini muted">${escapeHtml(r.t.description||"")}</div></td>
+        <td>${escapeHtml(due)}</td>
+        <td>${escapeHtml(target)}</td>
+        <td>${owner}</td>
+        <td class="row" style="gap:.35rem; flex-wrap:wrap">${btnOpen}${btnComplete}${btnUndo}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function setWhoLabel(){
+    const authed = !!me.user_id;
+    const label = authed ? `SNDM: ${me.display_name || me.user_id.slice(0,8)}` : (me.staff_id ? `Controller: ${nameForStaff(me.staff_id)}` : "Controller view");
+    $("#whoLabel").textContent = label;
+
+    $("#createBtnTop").classList.toggle("hide", !(authed && me.role==="sndm"));
+    $("#logoutBtnTop").classList.toggle("hide", !authed);
+    $("#loginBtnTop").classList.toggle("hide", authed);
+  }
+
+  function showAuthCard(show){ $("#authCard").classList.toggle("hide", !show); }
+
+  function renderDetail(task_id){
+    selectedTaskId = task_id;
+    const t = cache.tasks.find(x=>x.id===task_id);
+    if(!t){
+      $("#detailTitle").textContent="Select a task";
+      $("#detailSub").textContent="";
+      $("#detailBody").textContent="Select a task to view notes and actions.";
+      return;
+    }
+    $("#detailTitle").textContent = t.title || "Task";
+    $("#detailSub").textContent = isTaskComplete(task_id) ? "Complete" : "Open";
+
+    const notes = cache.notesByTask.get(task_id) || [];
+    const complete = isTaskComplete(task_id);
+    const canAuth = (me.mode==="auth" && me.user_id);
+
+    const notesHtml = notes.length
+      ? `<div style="display:flex; flex-direction:column; gap:.5rem; margin-top:.5rem;">
+          ${notes.map(n=>`<div class="subtle" style="padding:.6rem .7rem;">
+            <div class="mini muted">${fmtDate(n.created_at)} ${n.author_user_id ? "(SNDM)" : ""}</div>
+            <div>${escapeHtml(n.note||"")}</div>
+          </div>`).join("")}
+        </div>`
+      : `<div class="mini muted" style="margin-top:.5rem;">No notes yet.</div>`;
+
+    const addBtn = canAuth ? `<button class="btn sm" id="addNoteBtn" style="margin-top:.6rem;">Add note</button>` : ``;
+
+    $("#detailBody").innerHTML = `
+      <div class="mini muted">${escapeHtml(t.description||"")}</div>
+      <div class="hr"></div>
+      <div class="row" style="gap:.5rem;flex-wrap:wrap">
+        <span class="pill"><span class="dot ${complete ? "green":"grey"}"></span><span>${complete ? "Complete":"Open"}</span></span>
+        <span class="pill"><span class="mini muted">Due</span> <b>${escapeHtml((t.task_type==="quarterly" && t.quarter) ? t.quarter : (t.due_at ? fmtDate(t.due_at) : "—"))}</b></span>
+      </div>
+      ${addBtn}
+      ${notesHtml}
+    `;
+
+    const add = $("#addNoteBtn");
+    if(add){
+      add.onclick = async ()=>{
+        const note = prompt("Add note:");
+        if(!note || !note.trim()) return;
+        const ins = await sb.schema("cck").from("task_notes").insert({ task_id, note: note.trim(), author_user_id: me.user_id });
+        if(ins.error) return toast(ins.error.message);
+        await refreshAll(false);
+        renderDetail(task_id);
+      };
+    }
+  }
+
+  async function markComplete(task_id){
+    if(!(me.mode==="controller" && me.staff_id)) return toast("Select your name (controller) to complete tasks.");
+    const res = await sb.schema("cck").from("task_completions")
+      .upsert({ task_id, completed:true }, { onConflict:"task_id" });
+    if(res.error) return toast(res.error.message);
+    await refreshAll(false);
+    renderDetail(task_id);
+    toast("Marked complete");
+  }
+
+  async function undoComplete(task_id){
+    if(!(me.mode==="auth" && me.user_id)) return toast("SNDM login required to undo completion.");
+    const res = await sb.schema("cck").from("task_completions")
+      .upsert({ task_id, completed:false, completed_by_user_id: me.user_id }, { onConflict:"task_id" });
+    if(res.error) return toast(res.error.message);
+    await refreshAll(false);
+    renderDetail(task_id);
+    toast("Completion reversed");
+  }
+
+  async function doLogin(){
+    const email = $("#email").value.trim();
+    const pass = $("#pass").value;
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if(error) return toast(error.message);
+
+    me.user_id = data.user.id;
+    me.mode = "auth";
+
+    const prof = await sb.schema("cck").from("profiles").select("display_name,role").eq("user_id", me.user_id).single();
+    if(!prof.error && prof.data){
+      me.display_name = prof.data.display_name;
+      me.role = prof.data.role;
+    }else{
+      me.display_name = email;
+      me.role = "sndm";
+    }
+    showAuthCard(false);
+    setWhoLabel();
+    toast("Logged in");
+  }
+
+  async function doLogout(){
+    try{ await sb.auth.signOut(); }catch(e){}
+    me.user_id=null; me.role=null; me.display_name=null; me.mode="controller";
+    setWhoLabel();
+    toast("Logged out");
+  }
+
+  function openCreate(){
+    if(!(me.mode==="auth" && me.user_id && me.role==="sndm")) return toast("SNDM login required to create tasks.");
+    $("#createModal").classList.remove("hide");
+  }
+
+  async function createTask(){
+    if(!(me.mode==="auth" && me.user_id && me.role==="sndm")) return toast("SNDM login required.");
+    const title=$("#c_title").value.trim();
+    if(!title) return toast("Title required.");
+
+    const type=$("#c_type").value;
+    const due=$("#ct_due").value;
+    const q=$("#ct_quarter").value.trim();
+
+    const payload = {
+      title,
+      description: $("#c_desc").value.trim(),
+      task_type: type,
+      due_at: (type==="dated" && due) ? new Date(due).toISOString() : null,
+      quarter: (type==="quarterly" ? (q || null) : null),
+      target_team_id: $("#ct_targetTeam").value || null,
+      target_staff_id: $("#ct_targetStaff").value || null,
+      owner_staff_id: $("#ct_owner").value || null
+    };
+
+    const res = await sb.schema("cck").from("tasks").insert(payload);
+    if(res.error) return toast(res.error.message);
+
+    $("#createModal").classList.add("hide");
+    $("#c_title").value=""; $("#c_desc").value=""; $("#ct_due").value=""; $("#ct_quarter").value="";
+    await refreshAll(false);
+    toast("Task created");
+  }
+
+  async function refreshAll(showToast=true){
+    try{
+      await loadReference();
+      renderFilters();
+      await loadTasks();
+      renderTasks();
+      if(selectedTaskId) renderDetail(selectedTaskId);
+      setWhoLabel();
+      if(showToast) toast("Refreshed");
+    }catch(e){
+      setConn(false);
+      toast(e.message || String(e));
+    }
+  }
+
+  function bind(){
+    $("#loginBtnTop").addEventListener("click", ()=>{ showAuthCard(true); $("#email").focus(); });
+    $("#logoutBtnTop").addEventListener("click", doLogout);
+    $("#createBtnTop").addEventListener("click", openCreate);
+
+    $("#authCancel").addEventListener("click", ()=>showAuthCard(false));
+    $("#doLogin").addEventListener("click", doLogin);
+
+    $("#enterController").addEventListener("click", ()=>{
+      const v=$("#controllerStaff").value;
+      if(!v) return toast("Pick your name.");
+      me.staff_id = v;
+      me.mode="controller";
+      setWhoLabel();
+      toast("Controller set");
+    });
+    $("#exitController").addEventListener("click", ()=>{
+      me.staff_id = null;
+      me.mode="controller";
+      setWhoLabel();
+      toast("Controller cleared");
+    });
+
+    $("#refreshBtn").addEventListener("click", ()=>refreshAll(true));
+    $("#filterTeam").addEventListener("change", renderTasks);
+    $("#filterStaff").addEventListener("change", renderTasks);
+    $("#filterStatus").addEventListener("change", renderTasks);
+    $("#searchBox").addEventListener("input", renderTasks);
+
+    $("#taskTbody").addEventListener("click", (ev)=>{
+      const btn = ev.target.closest("button");
+      const tr = ev.target.closest("tr");
+      const id = (btn && btn.dataset && btn.dataset.id) || (tr && tr.dataset && tr.dataset.id);
+      if(!id) return;
+      const act = btn && btn.dataset ? btn.dataset.act : null;
+      if(act==="complete") return markComplete(id);
+      if(act==="undo") return undoComplete(id);
+      renderDetail(id);
+    });
+
+    const syncCreateType = ()=>{
+      const v=$("#c_type").value;
+      $("#dueWrap").classList.toggle("hide", v!=="dated");
+      $("#qWrap").classList.toggle("hide", v!=="quarterly");
+    };
+    $("#c_type").addEventListener("change", syncCreateType);
+    syncCreateType();
+
+    $("#c_cancel").addEventListener("click", ()=>$("#createModal").classList.add("hide"));
+    $("#c_cancel2").addEventListener("click", ()=>$("#createModal").classList.add("hide"));
+    $("#c_create").addEventListener("click", createTask);
+
+    setWhoLabel();
+  }
+
+  (async function boot(){
+    if(!initSupabase()) return;
+    setConn(true);
+    bind();
+    await refreshAll(false);
+  })();
+</script>
 
 </body>
 </html>
