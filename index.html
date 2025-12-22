@@ -165,7 +165,7 @@
       </div>
 
       <div id="authCard" class="hide" style="margin-top:.8rem">
-        <div class="mini muted">SNDM login (create tasks, undo completions, add notes).</div>
+        <div class="mini muted">SNDM login (create tasks, undo completions). Notes can be added by anyone.</div>
         <div class="row" style="gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
           <div class="field" style="flex:1;min-width:220px">
             <label>Email</label>
@@ -471,7 +471,7 @@
         </div>`
       : `<div class="mini muted" style="margin-top:.5rem;">No notes yet.</div>`;
 
-    const addBtn = canAuth ? `<button class="btn sm" id="addNoteBtn" style="margin-top:.6rem;">Add note</button>` : ``;
+    const addBtn = `<button class="btn sm" id="addNoteBtn" style="margin-top:.6rem;">Add note</button>`;
 
     $("#detailBody").innerHTML = `
       <div class="mini muted">${escapeHtml(t.description||"")}</div>
@@ -489,7 +489,25 @@
       add.onclick = async ()=>{
         const note = prompt("Add note:");
         if(!note || !note.trim()) return;
-        const ins = await sb.schema("cck").from("task_notes").insert({ task_id, note: note.trim(), author_user_id: me.user_id });
+        // Any user can add notes. If logged in, we store author_user_id. If in controller mode, we store null and prefix the note with the controller name.
+        let authorLabel = "";
+        if(me.user_id){
+          authorLabel = me.display_name ? `SNDM:${me.display_name}` : `SNDM:${me.user_id.slice(0,8)}`;
+        }else if(me.staff_id){
+          authorLabel = `CTRL:${nameForStaff(me.staff_id)}`;
+        }else{
+          const who = prompt("Your name (for note attribution):");
+          if(!who || !who.trim()) return;
+          authorLabel = `CTRL:${who.trim()}`;
+        }
+
+        const payload = {
+          task_id,
+          note: `[${authorLabel}] ${note.trim()}`,
+          author_user_id: me.user_id || null
+        };
+
+        const ins = await sb.schema("cck").from("task_notes").insert(payload);
         if(ins.error) return toast(ins.error.message);
         await refreshAll(false);
         renderDetail(task_id);
