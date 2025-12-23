@@ -66,6 +66,17 @@
     @media (max-width: 980px){
       .cols{ grid-template-columns: 1fr; }
     }
+    /* Fix ghost buttons when used as links in header */
+header a.btn.ghost {
+  color: #e5e7eb;              /* light grey text */
+  border: 1px solid #374151;   /* subtle outline */
+  background: transparent;
+  text-decoration: none;
+}
+
+header a.btn.ghost:hover {
+  background: rgba(255,255,255,0.08);
+}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
