@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CCK Compliance Admin</title>
+<style>
+
+:root{
+      --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
+      --header:#111827; --headerText:#f9fafb; --border:#e5e7eb;
+      --shadow:0 6px 18px rgba(0,0,0,.08); --radius:14px;
+      --btn:#111827; --btnText:#f9fafb; --btn2:#ffffff; --btn2Text:#111827;
+      --focus:rgba(17,24,39,.15);
+    }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);margin:0;color:var(--text)}
+    header{background:var(--header);color:var(--headerText);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;position:sticky;top:0;z-index:10}
+    header h1{font-size:1.05rem;margin:0;letter-spacing:.2px}
+    header .env{font-size:.8rem;opacity:.8}
+    header .right{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    main{padding:1.25rem;max-width:1240px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:1.4fr .6fr;gap:1rem}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:1rem}
+    .card h2{margin:.1rem 0 .75rem;font-size:1rem}
+    .muted{color:var(--muted)} .mini{font-size:.82rem}
+    .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+    .row.space{justify-content:space-between}
+    .tabs{display:flex;gap:.4rem;flex-wrap:wrap}
+    .tab{border:1px solid rgba(249,250,251,.25);background:rgba(249,250,251,.08);color:var(--headerText);padding:.45rem .7rem;border-radius:999px;cursor:pointer;font-size:.85rem;user-select:none}
+    .tab.active{background:rgba(249,250,251,.22);border-color:rgba(249,250,251,.35)}
+    button{border:1px solid var(--border);background:var(--btn);color:var(--btnText);padding:.5rem .75rem;border-radius:10px;cursor:pointer;font-weight:600;font-size:.85rem}
+    button.ghost{background:var(--btn2);color:var(--btn2Text)}
+    button:focus{outline:3px solid var(--focus);outline-offset:2px}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .sm{padding:.35rem .55rem;font-size:.82rem;border-radius:9px}
+    input,select,textarea{border:1px solid var(--border);border-radius:10px;padding:.5rem .6rem;font-size:.9rem;background:#fff;min-height:38px}
+    textarea{min-height:84px;width:100%}
+    label{font-size:.8rem;color:var(--muted)}
+    .field{display:flex;flex-direction:column;gap:.25rem}
+    table{width:100%;border-collapse:collapse;font-size:.9rem}
+    th,td{padding:.55rem .5rem;border-bottom:1px solid var(--border);vertical-align:top}
+    th{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left}
+    tr:hover td{background:#fafafa}
+    .pill{display:inline-flex;align-items:center;gap:.35rem;padding:.18rem .55rem;border-radius:999px;border:1px solid var(--border);background:#fafafa;font-size:.78rem;color:var(--text);white-space:nowrap}
+    .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
+    .dot.green{background:#16a34a}.dot.amber{background:#f59e0b}.dot.red{background:#dc2626}.dot.grey{background:#9ca3af}
+    .hide{display:none!important}
+    .hr{height:1px;background:var(--border);margin:.9rem 0}
+    .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem}
+    @media (max-width:980px){.kpi{grid-template-columns:repeat(2,1fr)}}
+    .kpi .box{border:1px solid var(--border);border-radius:12px;padding:.7rem;background:#fff}
+    .kpi .big{font-size:1.2rem;font-weight:800}
+    .kpi .small{font-size:.78rem;color:var(--muted)}
+    .toast{position:fixed;right:18px;bottom:18px;max-width:460px;background:#111827;color:#f9fafb;padding:.75rem .9rem;border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,.2);display:none;z-index:50}
+    .toast.show{display:block}
+    .subtle{background:#f9fafb;border:1px dashed var(--border);padding:.75rem;border-radius:12px}
+    a{color:#111827}
+  
+    .cols{
+      display:grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 1.25rem;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .cols{ grid-template-columns: 1fr; }
+    }
+  
+
+/* Bolt-on pages tweaks */
+main{max-width:1200px;margin:0 auto;padding:1.25rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:1rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media (max-width: 980px){.grid2{grid-template-columns:1fr}}
+.tableWrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+table{width:100%;border-collapse:collapse}
+th,td{padding:.65rem .75rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{text-align:left;font-size:.82rem;letter-spacing:.02em;color:var(--muted);background:linear-gradient(to bottom, rgba(17,24,39,.04), rgba(17,24,39,0));position:sticky;top:0}
+tr:hover td{background:rgba(17,24,39,.03)}
+.pill{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .5rem;border:1px solid var(--line);border-radius:999px;font-size:.8rem}
+.pill.ok{background:rgba(16,185,129,.10)}
+.pill.warn{background:rgba(245,158,11,.12)}
+.pill.bad{background:rgba(239,68,68,.10)}
+.pill.off{background:rgba(107,114,128,.12)}
+.small{font-size:.85rem;color:var(--muted)}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header>
+  <div class="row" style="gap:.75rem">
+    <div style="font-weight:800">Control Operational Compliance Keeper</div>
+    <div class="mini muted">Tasks</div>
+  </div>
+
+  <div class="row">
+    <div id="whoAmI" class="who mini">
+      <span class="dot grey"></span>
+      <span class="statusText">Not connected</span>
+      <span id="whoLabel" style="margin-left:.5rem" class="muted"></span>
+    </div>
+    <button class="btn" id="loginBtnTop">SNDM Login</button>
+    <button class="btn ghost hide" id="logoutBtnTop">Logout</button>
+    <button class="btn hide" id="createBtnTop">Create Task</button>
+  </div>
+</header>
+<main>
+
+<div class="grid2">
+  <section class="card">
+    <h2 style="margin:.1rem 0 .6rem 0">Compliance Admin</h2>
+    <div class="small">Build portfolios safely. Automation is per-person and defaults OFF.</div>
+
+    <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap">
+      <label style="min-width:260px">
+        <div class="mini muted">Person</div>
+        <select id="personSel"></select>
+      </label>
+
+      <label style="min-width:240px">
+        <div class="mini muted">Default owner (optional)</div>
+        <select id="ownerSel"></select>
+      </label>
+
+      <label style="min-width:240px">
+        <div class="mini muted">Default owner team (optional)</div>
+        <select id="ownerTeamSel"></select>
+      </label>
+
+      <label style="min-width:180px">
+        <div class="mini muted">Default horizon (days)</div>
+        <input id="horizonInp" class="input" type="number" min="1" placeholder="(blank = 60)" />
+      </label>
+
+      <label style="min-width:180px">
+        <div class="mini muted">Automation</div>
+        <div class="row" style="gap:.5rem">
+          <input id="autoToggle" type="checkbox" style="width:18px;height:18px"/>
+          <span id="autoLabel" class="pill off">OFF</span>
+        </div>
+      </label>
+
+      <button class="btn" id="saveSettingsBtn" style="align-self:end">Save settings</button>
+    </div>
+
+    <div class="small" style="margin-top:.75rem">
+      Tip: assign items first, set last-completed dates, then enable automation when ready.
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:.1rem 0 .6rem 0">Assignment Builder</h2>
+    <div class="small">Tick what applies. Enter last completed to calculate expiry. Manual items can use an explicit next expiry date.</div>
+
+    <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap">
+      <input id="filterInp" class="input" placeholder="Filter items..." style="flex:1; min-width:240px"/>
+      <button class="btn" id="refreshBtn">Refresh</button>
+    </div>
+  </section>
+</div>
+
+<section class="card" style="margin-top:1rem">
+  <h2 style="margin:.1rem 0 .6rem 0">Items for selected person</h2>
+  <div class="tableWrap">
+    <table id="itemsTbl">
+      <thead>
+        <tr>
+          <th style="width:52px">Use</th>
+          <th>Item</th>
+          <th style="width:120px">Mode</th>
+          <th style="width:140px">Last done</th>
+          <th style="width:160px">Expiry</th>
+          <th style="width:120px">Horizon</th>
+          <th style="width:120px">Status</th>
+          <th style="width:220px">Overrides</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<script>
+/** === Supabase config ===
+ * Paste your project URL + anon key here (single source of truth).
+ */
+const SUPABASE_URL  = "https://ungtmfwxqawkdiflmora.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+
+function $(q,root=document){ return root.querySelector(q); }
+function $all(q,root=document){ return Array.from(root.querySelectorAll(q)); }
+
+function toast(msg, kind="") {
+  const el = document.createElement("div");
+  el.className = "toast " + (kind||"");
+  el.textContent = msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  setTimeout(()=>{ el.classList.remove("show"); setTimeout(()=>el.remove(), 250); }, 2400);
+}
+
+function fmtDate(d) {
+  if(!d) return "";
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if(Number.isNaN(dt.getTime())) return String(d);
+  return dt.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+}
+
+function isoDate(d) {
+  if(!d) return null;
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if(Number.isNaN(dt.getTime())) return null;
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,"0");
+  const dd = String(dt.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dd}`;
+}
+
+function addInterval(dateStr, val, unit) {
+  // dateStr: YYYY-MM-DD
+  if(!dateStr || !val || !unit) return null;
+  const dt = new Date(dateStr + "T00:00:00Z");
+  if(Number.isNaN(dt.getTime())) return null;
+  if(unit==="days") dt.setUTCDate(dt.getUTCDate() + Number(val));
+  if(unit==="months") dt.setUTCMonth(dt.getUTCMonth() + Number(val));
+  if(unit==="years") dt.setUTCFullYear(dt.getUTCFullYear() + Number(val));
+  return isoDate(dt);
+}
+
+async function loadStaff() {
+  const { data, error } = await sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name");
+  if(error) throw error;
+  return data || [];
+}
+
+async function loadTeams() {
+  const { data, error } = await sb.schema("cck").from("teams").select("id,name").order("name");
+  if(error) throw error;
+  return data || [];
+}
+
+async function loadCatalog() {
+  const { data, error } = await sb.schema("cck").from("compliance_catalog")
+    .select("id,title,cycle_mode,cycle_value,cycle_unit,default_horizon_days,active,category")
+    .eq("active", true)
+    .order("title");
+  if(error) throw error;
+  return data || [];
+}
+
+async function ensurePersonSettings(staff_id) {
+  const { data, error } = await sb.schema("cck").from("compliance_person_settings")
+    .select("staff_id,automation_enabled,default_owner_staff_id,default_owner_team_id,default_horizon_days")
+    .eq("staff_id", staff_id)
+    .maybeSingle();
+  if(error) throw error;
+  if(data) return data;
+
+  const ins = await sb.schema("cck").from("compliance_person_settings")
+    .insert({ staff_id, automation_enabled:false });
+  if(ins.error) throw ins.error;
+
+  const again = await sb.schema("cck").from("compliance_person_settings")
+    .select("staff_id,automation_enabled,default_owner_staff_id,default_owner_team_id,default_horizon_days")
+    .eq("staff_id", staff_id)
+    .maybeSingle();
+  if(again.error) throw again.error;
+  return again.data;
+}
+
+async function loadAssignments(staff_id) {
+  // Pull assignments + record dates using the audit view
+  const { data, error } = await sb.schema("cck").from("v_compliance_audit")
+    .select("catalog_id,compliance_title,cycle_mode,cycle_value,cycle_unit,horizon_days,manual_next_expiry_at,last_completed_at,next_expiry_at,automation_enabled")
+    .eq("staff_id", staff_id)
+    .order("compliance_title");
+  if(error) throw error;
+  return data || [];
+}
+
+async function upsertAssignment(staff_id, catalog_id, active=true) {
+  // Insert if missing; set active accordingly.
+  const { data: existing, error: selErr } = await sb.schema("cck").from("compliance_assignments")
+    .select("id,active").eq("staff_id", staff_id).eq("catalog_id", catalog_id).maybeSingle();
+  if(selErr) throw selErr;
+  if(!existing) {
+    const ins = await sb.schema("cck").from("compliance_assignments").insert({ staff_id, catalog_id, active });
+    if(ins.error) throw ins.error;
+  } else {
+    const upd = await sb.schema("cck").from("compliance_assignments").update({ active }).eq("id", existing.id);
+    if(upd.error) throw upd.error;
+  }
+}
+
+async function deleteAssignment(staff_id, catalog_id) {
+  // Soft-off: set active false to preserve history.
+  const upd = await sb.schema("cck").from("compliance_assignments").update({ active:false })
+    .eq("staff_id", staff_id).eq("catalog_id", catalog_id);
+  if(upd.error) throw upd.error;
+}
+
+async function upsertRecord(staff_id, catalog_id, last_completed_at=null, next_expiry_at=null, last_task_id=null) {
+  const payload = { staff_id, catalog_id, last_completed_at, next_expiry_at, last_task_id };
+  const res = await sb.schema("cck").from("compliance_records").upsert(payload, { onConflict:"staff_id,catalog_id" });
+  if(res.error) throw res.error;
+}
+
+async function setManualExpiry(staff_id, catalog_id, manual_next_expiry_at=null) {
+  const res = await sb.schema("cck").from("compliance_assignments")
+    .update({ manual_next_expiry_at })
+    .eq("staff_id", staff_id).eq("catalog_id", catalog_id);
+  if(res.error) throw res.error;
+}
+
+async function setOverrides(staff_id, catalog_id, horizon_override_days=null, cycle_override_value=null, cycle_override_unit=null) {
+  const res = await sb.schema("cck").from("compliance_assignments")
+    .update({ horizon_override_days, cycle_override_value, cycle_override_unit })
+    .eq("staff_id", staff_id).eq("catalog_id", catalog_id);
+  if(res.error) throw res.error;
+}
+
+async function updatePersonSettings(staff_id, patch) {
+  const res = await sb.schema("cck").from("compliance_person_settings").update(patch).eq("staff_id", staff_id);
+  if(res.error) throw res.error;
+}
+
+function statusPill(row) {
+  const mode = row.cycle_mode;
+  if(mode==="tbc") return `<span class="pill off">TBC</span>`;
+  if(mode==="manual" && !row.manual_next_expiry_at && !row.next_expiry_at) return `<span class="pill off">Manual</span>`;
+  if(mode==="one_time") {
+    return row.last_completed_at ? `<span class="pill ok">Done</span>` : `<span class="pill warn">Not done</span>`;
+  }
+  const exp = row.manual_next_expiry_at || row.next_expiry_at;
+  if(!exp) return `<span class="pill off">No date</span>`;
+  const expDt = new Date(exp + "T00:00:00Z");
+  const now = new Date();
+  const horizonDays = Number(row.horizon_days || 60);
+  const horizonStart = new Date(expDt.getTime());
+  horizonStart.setUTCDate(horizonStart.getUTCDate() - horizonDays);
+
+  if(now > expDt) return `<span class="pill bad">Overdue</span>`;
+  if(now >= horizonStart) return `<span class="pill warn">Due soon</span>`;
+  return `<span class="pill ok">OK</span>`;
+}
+
+
+let STAFF=[], TEAMS=[], CATALOG=[];
+let currentStaffId = null;
+let assignMap = new Map(); // catalog_id -> audit row
+
+function opt(el, value, label){
+  const o=document.createElement("option");
+  o.value=value; o.textContent=label;
+  el.appendChild(o);
+}
+
+async function bootAdmin(){
+  try{
+    STAFF = await loadStaff();
+    TEAMS = await loadTeams();
+    CATALOG = await loadCatalog();
+
+    const personSel = $("#personSel");
+    personSel.innerHTML="";
+    opt(personSel,"","Select person...");
+    STAFF.forEach(s=>opt(personSel, s.id, s.display_name));
+
+    const ownerSel = $("#ownerSel");
+    ownerSel.innerHTML="";
+    opt(ownerSel,"","(None)");
+    STAFF.forEach(s=>opt(ownerSel, s.id, s.display_name));
+
+    const ownerTeamSel = $("#ownerTeamSel");
+    ownerTeamSel.innerHTML="";
+    opt(ownerTeamSel,"","(None)");
+    TEAMS.forEach(t=>opt(ownerTeamSel, t.id, t.name));
+
+    personSel.addEventListener("change", async ()=>{
+      currentStaffId = personSel.value || null;
+      await loadPersonState();
+    });
+
+    $("#refreshBtn").addEventListener("click", async ()=>{ await loadPersonState(true); });
+    $("#filterInp").addEventListener("input", ()=>renderItems());
+
+    $("#saveSettingsBtn").addEventListener("click", async ()=>{
+      if(!currentStaffId){ toast("Pick a person first","bad"); return; }
+      const patch = {
+        automation_enabled: $("#autoToggle").checked,
+        default_owner_staff_id: $("#ownerSel").value || null,
+        default_owner_team_id: $("#ownerTeamSel").value || null,
+        default_horizon_days: $("#horizonInp").value ? Number($("#horizonInp").value) : null
+      };
+      await updatePersonSettings(currentStaffId, patch);
+      toast("Settings saved","ok");
+    });
+
+    $("#autoToggle").addEventListener("change", ()=>{
+      const on = $("#autoToggle").checked;
+      $("#autoLabel").textContent = on ? "ON" : "OFF";
+      $("#autoLabel").className = "pill " + (on ? "ok" : "off");
+    });
+
+  }catch(e){
+    console.error(e);
+    toast(e.message || "Failed to load admin","bad");
+  }
+}
+
+async function loadPersonState(force=false){
+  if(!currentStaffId){
+    $("#itemsTbl tbody").innerHTML = `<tr><td colspan="8" class="muted">Select a person.</td></tr>`;
+    return;
+  }
+  try{
+    const ps = await ensurePersonSettings(currentStaffId);
+
+    $("#autoToggle").checked = !!ps.automation_enabled;
+    $("#autoLabel").textContent = ps.automation_enabled ? "ON" : "OFF";
+    $("#autoLabel").className = "pill " + (ps.automation_enabled ? "ok" : "off");
+
+    $("#ownerSel").value = ps.default_owner_staff_id || "";
+    $("#ownerTeamSel").value = ps.default_owner_team_id || "";
+    $("#horizonInp").value = (ps.default_horizon_days ?? "");
+
+    const rows = await loadAssignments(currentStaffId);
+    assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+
+    renderItems();
+  }catch(e){
+    console.error(e);
+    toast(e.message || "Failed to load person data","bad");
+  }
+}
+
+function renderItems(){
+  const tb = $("#itemsTbl tbody");
+  const q = ($("#filterInp").value||"").trim().toLowerCase();
+
+  const rows = CATALOG
+    .filter(c=>!q || c.title.toLowerCase().includes(q))
+    .map(c=>{
+      const a = assignMap.get(c.id) || null;
+      const checked = !!a;
+      const mode = a ? a.cycle_mode : c.cycle_mode;
+      const last = a?.last_completed_at || "";
+      const exp = a?.manual_next_expiry_at || a?.next_expiry_at || "";
+      const horizon = a?.horizon_days ?? c.default_horizon_days ?? 60;
+
+      const statusRow = a ? a : {
+        cycle_mode: c.cycle_mode,
+        horizon_days: horizon,
+        last_completed_at: null,
+        next_expiry_at: null,
+        manual_next_expiry_at: null
+      };
+
+      return `
+        <tr data-cid="${c.id}">
+          <td><input type="checkbox" class="useChk" ${checked?"checked":""}/></td>
+          <td>
+            <div style="font-weight:700">${c.title}</div>
+            <div class="small">${c.category||""}</div>
+          </td>
+          <td><span class="pill">${mode}</span></td>
+          <td>
+            <input type="date" class="input lastInp" value="${last||""}" ${checked?"":"disabled"} />
+          </td>
+          <td>
+            <input type="date" class="input expInp" value="${exp||""}" ${checked?"":"disabled"} />
+            <div class="small">Manual uses this. Fixed auto-computes.</div>
+          </td>
+          <td>
+            <input type="number" class="input hzInp" min="1" value="${horizon}" ${checked?"":"disabled"} />
+          </td>
+          <td>${statusPill(statusRow)}</td>
+          <td>
+            <div class="row" style="gap:.4rem;flex-wrap:wrap">
+              <input type="number" class="input ovVal" min="1" placeholder="cycle" style="width:84px" ${checked?"":"disabled"} />
+              <select class="input ovUnit" style="width:110px" ${checked?"":"disabled"}>
+                <option value="">unit</option>
+                <option value="days">days</option>
+                <option value="months">months</option>
+                <option value="years">years</option>
+              </select>
+              <button class="btn sm saveRowBtn" ${checked?"":"disabled"}>Save</button>
+            </div>
+            <div class="small">Overrides only needed for manual/edge cases.</div>
+          </td>
+        </tr>
+      `;
+    });
+
+  tb.innerHTML = rows.join("") || `<tr><td colspan="8" class="muted">No items.</td></tr>`;
+  bindRowEvents();
+}
+
+function bindRowEvents(){
+  $all("#itemsTbl tbody tr").forEach(tr=>{
+    const cid = tr.getAttribute("data-cid");
+
+    const chk = tr.querySelector(".useChk");
+    const lastInp = tr.querySelector(".lastInp");
+    const expInp  = tr.querySelector(".expInp");
+    const hzInp   = tr.querySelector(".hzInp");
+    const saveBtn = tr.querySelector(".saveRowBtn");
+    const ovVal   = tr.querySelector(".ovVal");
+    const ovUnit  = tr.querySelector(".ovUnit");
+
+    chk.addEventListener("change", async ()=>{
+      try{
+        if(!currentStaffId) return;
+        if(chk.checked){
+          await upsertAssignment(currentStaffId, cid, true);
+          // add to assignMap by reloading person rows
+          const rows = await loadAssignments(currentStaffId);
+          assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+          toast("Assigned","ok");
+        }else{
+          await deleteAssignment(currentStaffId, cid);
+          assignMap.delete(cid);
+          toast("Unassigned","ok");
+        }
+        renderItems();
+      }catch(e){
+        console.error(e);
+        toast(e.message || "Failed","bad");
+        chk.checked = !chk.checked;
+      }
+    });
+
+    lastInp.addEventListener("change", async ()=>{
+      try{
+        if(!currentStaffId) return;
+        if(!chk.checked) return;
+
+        const audit = assignMap.get(cid);
+        const last = lastInp.value || null;
+
+        // compute next expiry for fixed cycles
+        let next = null;
+        if(audit){
+          if(audit.cycle_mode==="fixed"){
+            const val = audit.cycle_value;
+            const unit = audit.cycle_unit;
+            next = last ? addInterval(last, val, unit) : null;
+          }else if(audit.cycle_mode==="one_time"){
+            next = null;
+          }else if(audit.cycle_mode==="manual"){
+            // manual expiry comes from expInp/manual_next_expiry_at, stored on assignment
+            next = null;
+          }else if(audit.cycle_mode==="tbc"){
+            next = null;
+          }
+        }
+        await upsertRecord(currentStaffId, cid, last, next, null);
+
+        // refresh map
+        const rows = await loadAssignments(currentStaffId);
+        assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+        toast("Saved completion date","ok");
+        renderItems();
+      }catch(e){
+        console.error(e);
+        toast(e.message || "Failed to save date","bad");
+      }
+    });
+
+    expInp.addEventListener("change", async ()=>{
+      try{
+        if(!currentStaffId || !chk.checked) return;
+        const val = expInp.value || null;
+        await setManualExpiry(currentStaffId, cid, val);
+        // Also store into records.next_expiry_at for consistency (helps audit)
+        const audit = assignMap.get(cid);
+        if(audit && (audit.cycle_mode==="manual" || audit.cycle_mode==="tbc")){
+          await upsertRecord(currentStaffId, cid, audit.last_completed_at || null, val, null);
+        }
+        const rows = await loadAssignments(currentStaffId);
+        assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+        toast("Saved expiry","ok");
+        renderItems();
+      }catch(e){
+        console.error(e);
+        toast(e.message || "Failed to save expiry","bad");
+      }
+    });
+
+    hzInp.addEventListener("change", async ()=>{
+      try{
+        if(!currentStaffId || !chk.checked) return;
+        const hz = hzInp.value ? Number(hzInp.value) : null;
+        await setOverrides(currentStaffId, cid, hz, null, null);
+        const rows = await loadAssignments(currentStaffId);
+        assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+        toast("Saved horizon override","ok");
+        renderItems();
+      }catch(e){
+        console.error(e);
+        toast(e.message || "Failed to save horizon","bad");
+      }
+    });
+
+    saveBtn.addEventListener("click", async ()=>{
+      try{
+        if(!currentStaffId || !chk.checked) return;
+        const v = ovVal.value ? Number(ovVal.value) : null;
+        const u = ovUnit.value || null;
+        await setOverrides(currentStaffId, cid, (hzInp.value?Number(hzInp.value):null), v, u);
+        // Recalc expiry if fixed override and last completed exists
+        const audit = assignMap.get(cid);
+        const last = tr.querySelector(".lastInp").value || null;
+        if(last && v && u){
+          const next = addInterval(last, v, u);
+          await upsertRecord(currentStaffId, cid, last, next, null);
+        }
+        const rows = await loadAssignments(currentStaffId);
+        assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+        toast("Overrides saved","ok");
+        renderItems();
+      }catch(e){
+        console.error(e);
+        toast(e.message || "Failed to save overrides","bad");
+      }
+    });
+
+  });
+}
+
+bootAdmin();
+
+</script>
+</body>
+</html>
