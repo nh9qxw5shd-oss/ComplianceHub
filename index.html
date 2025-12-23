@@ -341,6 +341,178 @@ header a.btn.ghost:hover {
     return sb;
   }
 
+  // ===== Compliance monitor (hybrid run on tasks page load) =====
+const COMPLIANCE_MONITOR_THROTTLE_MINUTES = 15;
+const COMPLIANCE_MONITOR_KEY = "cck_lastComplianceMonitorRun";
+
+function shouldRunComplianceMonitor(){
+  try{
+    const last = Number(localStorage.getItem(COMPLIANCE_MONITOR_KEY) || "0");
+    const now = Date.now();
+    return (now - last) > (COMPLIANCE_MONITOR_THROTTLE_MINUTES * 60 * 1000);
+  }catch(e){
+    return true;
+  }
+}
+function markComplianceMonitorRan(){
+  try{ localStorage.setItem(COMPLIANCE_MONITOR_KEY, String(Date.now())); }catch(e){}
+}
+
+function isoDate(d){
+  if(!d) return null;
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if(Number.isNaN(dt.getTime())) return null;
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,"0");
+  const dd = String(dt.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dd}`;
+}
+function addInterval(dateStr, val, unit){
+  if(!dateStr || !val || !unit) return null;
+  const dt = new Date(dateStr + "T00:00:00Z");
+  if(Number.isNaN(dt.getTime())) return null;
+  if(unit==="days") dt.setUTCDate(dt.getUTCDate() + Number(val));
+  if(unit==="months") dt.setUTCMonth(dt.getUTCMonth() + Number(val));
+  if(unit==="years") dt.setUTCFullYear(dt.getUTCFullYear() + Number(val));
+  return isoDate(dt);
+}
+
+async function runComplianceMonitorAllEnabled(){
+  if(!sb) return;
+  if(!shouldRunComplianceMonitor()) return;
+
+  // Mark early to avoid rapid refresh loops spamming
+  markComplianceMonitorRan();
+
+  // Who is enabled?
+  const enabledRes = await sb.schema("cck").from("compliance_person_settings")
+    .select("staff_id,default_owner_staff_id,default_owner_team_id,default_horizon_days")
+    .eq("automation_enabled", true);
+
+  if(enabledRes.error) throw enabledRes.error;
+  const enabled = enabledRes.data || [];
+  if(!enabled.length) return;
+
+  const staffIds = enabled.map(x=>x.staff_id);
+
+  // Pull audit rows for enabled staff
+  const or = staffIds.map(id=>`staff_id.eq.${id}`).join(",");
+  const auditRes = await sb.schema("cck").from("v_compliance_audit")
+    .select("staff_id,catalog_id,compliance_title,cycle_mode,cycle_value,cycle_unit,horizon_days,manual_next_expiry_at,last_completed_at,next_expiry_at,automation_enabled")
+    .or(or);
+
+  if(auditRes.error) throw auditRes.error;
+  const rows = auditRes.data || [];
+
+  // Pull catalog (for defaults + title)
+  const catRes = await sb.schema("cck").from("compliance_catalog")
+    .select("id,title,cycle_mode,cycle_value,cycle_unit,default_owner_staff_id,default_owner_team_id,default_horizon_days,active")
+    .eq("active", true);
+
+  if(catRes.error) throw catRes.error;
+  const catById = new Map((catRes.data||[]).map(c=>[c.id,c]));
+
+  // Person settings lookup
+  const psByStaff = new Map(enabled.map(p=>[p.staff_id,p]));
+
+  const now = new Date();
+
+  for(const r of rows){
+    if(!r.automation_enabled) continue;
+
+    const c = catById.get(r.catalog_id);
+    if(!c) continue;
+
+    // ignore TBC
+    if(r.cycle_mode === "tbc") continue;
+
+    // one-time: only if never completed
+    if(r.cycle_mode === "one_time" && r.last_completed_at) continue;
+
+    let expiry = r.manual_next_expiry_at || r.next_expiry_at || null;
+
+    // compute fixed expiry if missing but we have last completed
+    if(r.cycle_mode==="fixed" && r.last_completed_at && !expiry){
+      expiry = addInterval(r.last_completed_at, r.cycle_value, r.cycle_unit);
+      // persist for consistency
+      const up = await sb.schema("cck").from("compliance_records").upsert(
+        { staff_id:r.staff_id, catalog_id:r.catalog_id, last_completed_at:r.last_completed_at, next_expiry_at:expiry, last_task_id:null },
+        { onConflict:"staff_id,catalog_id" }
+      );
+      if(up.error) throw up.error;
+    }
+
+    // manual must have explicit expiry to trigger
+    if(r.cycle_mode==="manual" && !expiry) continue;
+
+    const horizonDays = Number(r.horizon_days ?? 60);
+
+    let inHorizon = true;
+    if(expiry){
+      const expDt = new Date(expiry + "T00:00:00Z");
+      const horizonStart = new Date(expDt.getTime());
+      horizonStart.setUTCDate(horizonStart.getUTCDate() - horizonDays);
+      inHorizon = now >= horizonStart;
+      if(now > expDt) inHorizon = true; // overdue is definitely in scope
+    }
+    if(r.cycle_mode==="one_time") inHorizon = true;
+
+    if(!inHorizon) continue;
+
+    // Check map for open entry (avoid dupes)
+    const cycle_expiry_at = expiry || null;
+    const mapRes = await sb.schema("cck").from("compliance_task_map")
+      .select("id")
+      .eq("staff_id", r.staff_id)
+      .eq("catalog_id", r.catalog_id)
+      .eq("cycle_expiry_at", cycle_expiry_at)
+      .eq("status", "open")
+      .limit(1);
+
+    if(mapRes.error) throw mapRes.error;
+    if((mapRes.data||[]).length) continue;
+
+    const ps = psByStaff.get(r.staff_id) || {};
+    const owner_staff_id = ps.default_owner_staff_id || c.default_owner_staff_id || null;
+    const target_team_id  = ps.default_owner_team_id  || c.default_owner_team_id  || null;
+
+    const expiryTxt = expiry ? expiry : "N/A";
+    const desc =
+`Compliance item is approaching expiry.
+
+Expiry date: ${expiryTxt}`;
+
+    // Create normal task (your core table)
+    const insTask = await sb.schema("cck").from("tasks")
+      .insert({
+        title: c.title,                 // ✅ title matches compliance title
+        description: desc,              // ✅ expiry in description
+        task_type: "compliance",
+        due_at: expiry ? new Date(expiry + "T09:00:00Z").toISOString() : null,
+        quarter: null,
+        target_team_id,
+        target_staff_id: r.staff_id,
+        owner_staff_id
+      })
+      .select("id").single();
+
+    if(insTask.error) throw insTask.error;
+
+    // Map it (dedupe anchor)
+    const insMap = await sb.schema("cck").from("compliance_task_map")
+      .insert({
+        task_id: insTask.data.id,
+        staff_id: r.staff_id,
+        catalog_id: r.catalog_id,
+        cycle_expiry_at,
+        status: "open"
+      });
+
+    // Ignore unique race (another browser created it same time)
+    if(insMap.error && insMap.error.code !== "23505") throw insMap.error;
+  }
+}
+
   async function loadReference(){
     const [teamsRes, staffRes] = await Promise.all([
       sb.schema("cck").from("teams").select("id,name").order("name"),
@@ -693,11 +865,14 @@ header a.btn.ghost:hover {
   }
 
   (async function boot(){
-    if(!initSupabase()) return;
-    setConn(true);
-    bind();
-    await refreshAll(false);
-  })();
+  if(!initSupabase()) return;
+  setConn(true);
+  bind();
+  await refreshAll(false);
+
+  // ✅ Hybrid compliance sweep: runs quietly on page load
+  runComplianceMonitorAllEnabled().catch(()=>{});
+})();
 </script>
 
 </body>
