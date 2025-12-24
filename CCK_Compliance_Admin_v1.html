@@ -85,6 +85,19 @@ tr:hover td{background:rgba(17,24,39,.03)}
 .pill.bad{background:rgba(239,68,68,.10)}
 .pill.off{background:rgba(107,114,128,.12)}
 .small{font-size:.85rem;color:var(--muted)}
+
+/* === Main-body tabs (visible on light background) === */
+.mainTabs .tab{
+  color: var(--text);
+  background: #ffffff;
+  border: 1px solid var(--border);
+}
+.mainTabs .tab.active{
+  background: var(--header);
+  color: var(--headerText);
+  border-color: rgba(17,24,39,.35);
+}
+
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -111,84 +124,225 @@ tr:hover td{background:rgba(17,24,39,.03)}
   </div>
 </header>
 <main>
+<!-- Tabs -->
+<div class="row mainTabs" style="gap:.5rem; flex-wrap:wrap; margin-bottom:1rem">
+  <button class="tab active" id="tabPortfolios" type="button">Portfolios</button>
+  <button class="tab" id="tabStaff" type="button">Staff Manager</button>
+  <button class="tab" id="tabCatalog" type="button">Catalog Manager</button>
+</div>
 
-<div class="grid2">
-  <section class="card">
-    <h2 style="margin:.1rem 0 .6rem 0">Compliance Admin</h2>
-    <div class="small">Build portfolios safely. Automation is per-person and defaults OFF.</div>
+<!-- === Portfolios (existing) === -->
+<div id="viewPortfolios">
+  <div class="grid2">
+    <section class="card">
+      <h2 style="margin:.1rem 0 .6rem 0">Compliance Admin</h2>
+      <div class="small">Build portfolios safely. Automation is per-person and defaults OFF.</div>
 
-    <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap">
-      <label style="min-width:260px">
-        <div class="mini muted">Person</div>
-        <select id="personSel"></select>
-      </label>
+      <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap">
+        <label style="min-width:260px">
+          <div class="mini muted">Person</div>
+          <select id="personSel"></select>
+        </label>
 
-      <label style="min-width:240px">
-        <div class="mini muted">Default owner (optional)</div>
-        <select id="ownerSel"></select>
-      </label>
+        <label style="min-width:240px">
+          <div class="mini muted">Default owner (optional)</div>
+          <select id="ownerSel"></select>
+        </label>
 
-      <label style="min-width:240px">
-        <div class="mini muted">Default owner team (optional)</div>
-        <select id="ownerTeamSel"></select>
-      </label>
+        <label style="min-width:240px">
+          <div class="mini muted">Default owner team (optional)</div>
+          <select id="ownerTeamSel"></select>
+        </label>
 
-      <label style="min-width:180px">
-        <div class="mini muted">Default horizon (days)</div>
-        <input id="horizonInp" class="input" type="number" min="1" placeholder="(blank = 60)" />
-      </label>
+        <label style="min-width:180px">
+          <div class="mini muted">Default horizon (days)</div>
+          <input id="horizonInp" class="input" type="number" min="1" placeholder="(blank = 60)" />
+        </label>
 
-      <label style="min-width:180px">
-        <div class="mini muted">Automation</div>
-        <div class="row" style="gap:.5rem">
-          <input id="autoToggle" type="checkbox" style="width:18px;height:18px"/>
-          <span id="autoLabel" class="pill off">OFF</span>
-        </div>
-      </label>
+        <label style="min-width:180px">
+          <div class="mini muted">Automation</div>
+          <div class="row" style="gap:.5rem">
+            <input id="autoToggle" type="checkbox" style="width:18px;height:18px"/>
+            <span id="autoLabel" class="pill off">OFF</span>
+          </div>
+        </label>
 
-      <button class="btn" id="saveSettingsBtn" style="align-self:end">Save settings</button>
-    </div>
+        <button class="btn" id="saveSettingsBtn" style="align-self:end">Save settings</button>
+      </div>
 
-    <div class="small" style="margin-top:.75rem">
-      Tip: assign items first, set last-completed dates, then enable automation when ready.
-    </div>
-  </section>
+      <div class="small" style="margin-top:.75rem">
+        Tip: assign items first, set last-completed dates, then enable automation when ready.
+      </div>
+    </section>
 
-  <section class="card">
-    <h2 style="margin:.1rem 0 .6rem 0">Assignment Builder</h2>
-    <div class="small">Tick what applies. Enter last completed to calculate expiry. Manual items can use an explicit next expiry date.</div>
+    <section class="card">
+      <h2 style="margin:.1rem 0 .6rem 0">Assignment Builder</h2>
+      <div class="small">Tick what applies. Enter last completed to calculate expiry. Manual items can use an explicit next expiry date.</div>
 
-    <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap">
-      <input id="filterInp" class="input" placeholder="Filter items..." style="flex:1; min-width:240px"/>
-      <button class="btn" id="refreshBtn">Refresh</button>
+      <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap">
+        <input id="filterInp" class="input" placeholder="Filter items..." style="flex:1; min-width:240px"/>
+        <button class="btn" id="refreshBtn">Refresh</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:1rem">
+    <h2 style="margin:.1rem 0 .6rem 0">Items for selected person</h2>
+    <div class="tableWrap">
+      <table id="itemsTbl">
+        <thead>
+          <tr>
+            <th style="width:52px">Use</th>
+            <th>Item</th>
+            <th style="width:120px">Mode</th>
+            <th style="width:140px">Last done</th>
+            <th style="width:160px">Expiry</th>
+            <th style="width:120px">Horizon</th>
+            <th style="width:120px">Status</th>
+            <th style="width:220px">Overrides</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
   </section>
 </div>
 
-<section class="card" style="margin-top:1rem">
-  <h2 style="margin:.1rem 0 .6rem 0">Items for selected person</h2>
-  <div class="tableWrap">
-    <table id="itemsTbl">
-      <thead>
-        <tr>
-          <th style="width:52px">Use</th>
-          <th>Item</th>
-          <th style="width:120px">Mode</th>
-          <th style="width:140px">Last done</th>
-          <th style="width:160px">Expiry</th>
-          <th style="width:120px">Horizon</th>
-          <th style="width:120px">Status</th>
-          <th style="width:220px">Overrides</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-</section>
+<!-- === Staff Manager === -->
+<div id="viewStaff" class="hide">
+  <section class="card">
+    <div class="row space">
+      <h2 style="margin:.1rem 0 .6rem 0">Staff Manager</h2>
+      <button class="btn ghost" id="staffRefreshBtn" type="button">Refresh</button>
+    </div>
+    <div class="small">Add/edit staff in the pool. Deactivate hides them from dropdowns without deleting history.</div>
 
+    <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap; align-items:flex-end">
+      <div class="field" style="min-width:320px; flex:1">
+        <label>New staff display name</label>
+        <input id="staffNewName" placeholder="e.g. Alex Smith"/>
+      </div>
+      <button class="btn" id="staffAddBtn" type="button">Add staff</button>
+
+      <div class="field" style="min-width:260px; flex:1">
+        <label>Search</label>
+        <input id="staffSearch" placeholder="Filter staff..."/>
+      </div>
+      <label class="row" style="gap:.5rem; margin-left:auto">
+        <input id="staffShowInactive" type="checkbox" style="width:18px;height:18px"/>
+        <span class="mini muted">Show inactive</span>
+      </label>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="tableWrap">
+      <table id="staffTbl">
+        <thead>
+          <tr>
+            <th style="width:220px">Name</th>
+            <th style="width:120px">Status</th>
+            <th>Id</th>
+            <th style="width:220px">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="small" style="margin-top:.75rem">
+      Note: if you haven’t run the <span class="pill off">active</span> column patch yet, deactivate/reactivate will be disabled.
+    </div>
+  </section>
+</div>
+
+<!-- === Catalog Manager === -->
+<div id="viewCatalog" class="hide">
+  <section class="card">
+    <div class="row space">
+      <h2 style="margin:.1rem 0 .6rem 0">Catalog Manager</h2>
+      <button class="btn ghost" id="catRefreshBtn" type="button">Refresh</button>
+    </div>
+    <div class="small">Maintain the master compliance portfolio (including converting <span class="pill off">TBC</span> into real cycle rules).</div>
+
+    <div class="row" style="margin-top:.9rem; gap:.6rem; flex-wrap:wrap; align-items:flex-end">
+      <div class="field" style="min-width:320px; flex:1">
+        <label>New item title</label>
+        <input id="catNewTitle" placeholder="e.g. Asbestos Awareness"/>
+      </div>
+      <div class="field" style="min-width:220px">
+        <label>Category</label>
+        <input id="catNewCategory" placeholder="e.g. Safety"/>
+      </div>
+      <div class="field" style="min-width:160px">
+        <label>Cycle mode</label>
+        <select id="catNewMode">
+          <option value="fixed">fixed</option>
+          <option value="one_time">one_time</option>
+          <option value="manual">manual</option>
+          <option value="tbc">tbc</option>
+        </select>
+      </div>
+      <div class="field" style="min-width:120px">
+        <label>Value</label>
+        <input id="catNewVal" type="number" min="1" placeholder="e.g. 3"/>
+      </div>
+      <div class="field" style="min-width:140px">
+        <label>Unit</label>
+        <select id="catNewUnit">
+          <option value="">(none)</option>
+          <option value="days">days</option>
+          <option value="months">months</option>
+          <option value="years">years</option>
+        </select>
+      </div>
+      <div class="field" style="min-width:160px">
+        <label>Default horizon (days)</label>
+        <input id="catNewHz" type="number" min="1" placeholder="60"/>
+      </div>
+      <button class="btn" id="catAddBtn" type="button">Add item</button>
+    </div>
+
+    <div class="row" style="margin-top:.8rem; gap:.6rem; flex-wrap:wrap">
+      <div class="field" style="min-width:260px; flex:1">
+        <label>Search</label>
+        <input id="catSearch" placeholder="Filter catalog..."/>
+      </div>
+      <label class="row" style="gap:.5rem; margin-left:auto">
+        <input id="catShowInactive" type="checkbox" style="width:18px;height:18px"/>
+        <span class="mini muted">Show inactive</span>
+      </label>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="tableWrap">
+      <table id="catTbl">
+        <thead>
+          <tr>
+            <th style="width:320px">Title</th>
+            <th style="width:160px">Category</th>
+            <th style="width:120px">Mode</th>
+            <th style="width:100px">Value</th>
+            <th style="width:120px">Unit</th>
+            <th style="width:140px">Horizon</th>
+            <th style="width:120px">Active</th>
+            <th style="width:220px">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="small" style="margin-top:.75rem">
+      Tip: set <b>mode=fixed</b> with value+unit for standard cycles. Use <b>manual</b> when expiry varies per person. Use <b>one_time</b> when it should only trigger if never completed.
+    </div>
+  </section>
+</div>
 </main>
 
 <script>
+
 /** === Supabase config ===
  * Paste your project URL + anon key here (single source of truth).
  */
@@ -211,13 +365,6 @@ function toast(msg, kind="") {
   setTimeout(()=>{ el.classList.remove("show"); setTimeout(()=>el.remove(), 250); }, 2400);
 }
 
-function fmtDate(d) {
-  if(!d) return "";
-  const dt = (d instanceof Date) ? d : new Date(d);
-  if(Number.isNaN(dt.getTime())) return String(d);
-  return dt.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
-}
-
 function isoDate(d) {
   if(!d) return null;
   const dt = (d instanceof Date) ? d : new Date(d);
@@ -229,7 +376,6 @@ function isoDate(d) {
 }
 
 function addInterval(dateStr, val, unit) {
-  // dateStr: YYYY-MM-DD
   if(!dateStr || !val || !unit) return null;
   const dt = new Date(dateStr + "T00:00:00Z");
   if(Number.isNaN(dt.getTime())) return null;
@@ -239,10 +385,48 @@ function addInterval(dateStr, val, unit) {
   return isoDate(dt);
 }
 
-async function loadStaff() {
-  const { data, error } = await sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name");
-  if(error) throw error;
-  return data || [];
+function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
+
+// ===== Tabs =====
+function setTab(tab){
+  $("#tabPortfolios").classList.toggle("active", tab==="portfolios");
+  $("#tabStaff").classList.toggle("active", tab==="staff");
+  $("#tabCatalog").classList.toggle("active", tab==="catalog");
+
+  $("#viewPortfolios").classList.toggle("hide", tab!=="portfolios");
+  $("#viewStaff").classList.toggle("hide", tab!=="staff");
+  $("#viewCatalog").classList.toggle("hide", tab!=="catalog");
+}
+
+function bindTabs(){
+  $("#tabPortfolios").addEventListener("click", ()=>setTab("portfolios"));
+  $("#tabStaff").addEventListener("click", async ()=>{ setTab("staff"); await refreshStaff(true); });
+  $("#tabCatalog").addEventListener("click", async ()=>{ setTab("catalog"); await refreshCatalog(true); });
+}
+
+// ===== Shared caches =====
+let STAFF=[], TEAMS=[], CATALOG=[];
+
+// ===== Portfolios (existing behaviour) =====
+let currentStaffId = null;
+let assignMap = new Map(); // catalog_id -> audit row
+
+function opt(el, value, label){
+  const o=document.createElement("option");
+  o.value=value; o.textContent=label;
+  el.appendChild(o);
+}
+
+async function loadStaffActive() {
+  // Prefer active=true if column exists; fall back if not.
+  let res = await sb.schema("cck").from("staff_pool").select("id,display_name,active").order("display_name");
+  if(res.error && /column .*active/i.test(res.error.message||"")){
+    res = await sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name");
+  }
+  if(res.error) throw res.error;
+  const rows = res.data || [];
+  if(rows.length && "active" in rows[0]) return rows.filter(r=>r.active!==false);
+  return rows;
 }
 
 async function loadTeams() {
@@ -251,7 +435,7 @@ async function loadTeams() {
   return data || [];
 }
 
-async function loadCatalog() {
+async function loadCatalogActive() {
   const { data, error } = await sb.schema("cck").from("compliance_catalog")
     .select("id,title,cycle_mode,cycle_value,cycle_unit,default_horizon_days,active,category")
     .eq("active", true)
@@ -281,7 +465,6 @@ async function ensurePersonSettings(staff_id) {
 }
 
 async function loadAssignments(staff_id) {
-  // Pull assignments + record dates using the audit view
   const { data, error } = await sb.schema("cck").from("v_compliance_audit")
     .select("catalog_id,compliance_title,cycle_mode,cycle_value,cycle_unit,horizon_days,manual_next_expiry_at,last_completed_at,next_expiry_at,automation_enabled")
     .eq("staff_id", staff_id)
@@ -291,7 +474,6 @@ async function loadAssignments(staff_id) {
 }
 
 async function upsertAssignment(staff_id, catalog_id, active=true) {
-  // Insert if missing; set active accordingly.
   const { data: existing, error: selErr } = await sb.schema("cck").from("compliance_assignments")
     .select("id,active").eq("staff_id", staff_id).eq("catalog_id", catalog_id).maybeSingle();
   if(selErr) throw selErr;
@@ -305,7 +487,6 @@ async function upsertAssignment(staff_id, catalog_id, active=true) {
 }
 
 async function deleteAssignment(staff_id, catalog_id) {
-  // Soft-off: set active false to preserve history.
   const upd = await sb.schema("cck").from("compliance_assignments").update({ active:false })
     .eq("staff_id", staff_id).eq("catalog_id", catalog_id);
   if(upd.error) throw upd.error;
@@ -356,94 +537,72 @@ function statusPill(row) {
   return `<span class="pill ok">OK</span>`;
 }
 
+async function bootPortfolios(){
+  STAFF = await loadStaffActive();
+  TEAMS = await loadTeams();
+  CATALOG = await loadCatalogActive();
 
-let STAFF=[], TEAMS=[], CATALOG=[];
-let currentStaffId = null;
-let assignMap = new Map(); // catalog_id -> audit row
+  const personSel = $("#personSel");
+  personSel.innerHTML="";
+  opt(personSel,"","Select person...");
+  STAFF.forEach(s=>opt(personSel, s.id, s.display_name));
 
-function opt(el, value, label){
-  const o=document.createElement("option");
-  o.value=value; o.textContent=label;
-  el.appendChild(o);
+  const ownerSel = $("#ownerSel");
+  ownerSel.innerHTML="";
+  opt(ownerSel,"","(None)");
+  STAFF.forEach(s=>opt(ownerSel, s.id, s.display_name));
+
+  const ownerTeamSel = $("#ownerTeamSel");
+  ownerTeamSel.innerHTML="";
+  opt(ownerTeamSel,"","(None)");
+  TEAMS.forEach(t=>opt(ownerTeamSel, t.id, t.name));
+
+  personSel.addEventListener("change", async ()=>{
+    currentStaffId = personSel.value || null;
+    await loadPersonState();
+  });
+
+  $("#refreshBtn").addEventListener("click", async ()=>{ await loadPersonState(true); });
+  $("#filterInp").addEventListener("input", ()=>renderItems());
+
+  $("#saveSettingsBtn").addEventListener("click", async ()=>{
+    if(!currentStaffId){ toast("Pick a person first","bad"); return; }
+    const patch = {
+      automation_enabled: $("#autoToggle").checked,
+      default_owner_staff_id: $("#ownerSel").value || null,
+      default_owner_team_id: $("#ownerTeamSel").value || null,
+      default_horizon_days: $("#horizonInp").value ? Number($("#horizonInp").value) : null
+    };
+    await updatePersonSettings(currentStaffId, patch);
+    toast("Settings saved","ok");
+  });
+
+  $("#autoToggle").addEventListener("change", ()=>{
+    const on = $("#autoToggle").checked;
+    $("#autoLabel").textContent = on ? "ON" : "OFF";
+    $("#autoLabel").className = "pill " + (on ? "ok" : "off");
+  });
 }
 
-async function bootAdmin(){
-  try{
-    STAFF = await loadStaff();
-    TEAMS = await loadTeams();
-    CATALOG = await loadCatalog();
-
-    const personSel = $("#personSel");
-    personSel.innerHTML="";
-    opt(personSel,"","Select person...");
-    STAFF.forEach(s=>opt(personSel, s.id, s.display_name));
-
-    const ownerSel = $("#ownerSel");
-    ownerSel.innerHTML="";
-    opt(ownerSel,"","(None)");
-    STAFF.forEach(s=>opt(ownerSel, s.id, s.display_name));
-
-    const ownerTeamSel = $("#ownerTeamSel");
-    ownerTeamSel.innerHTML="";
-    opt(ownerTeamSel,"","(None)");
-    TEAMS.forEach(t=>opt(ownerTeamSel, t.id, t.name));
-
-    personSel.addEventListener("change", async ()=>{
-      currentStaffId = personSel.value || null;
-      await loadPersonState();
-    });
-
-    $("#refreshBtn").addEventListener("click", async ()=>{ await loadPersonState(true); });
-    $("#filterInp").addEventListener("input", ()=>renderItems());
-
-    $("#saveSettingsBtn").addEventListener("click", async ()=>{
-      if(!currentStaffId){ toast("Pick a person first","bad"); return; }
-      const patch = {
-        automation_enabled: $("#autoToggle").checked,
-        default_owner_staff_id: $("#ownerSel").value || null,
-        default_owner_team_id: $("#ownerTeamSel").value || null,
-        default_horizon_days: $("#horizonInp").value ? Number($("#horizonInp").value) : null
-      };
-      await updatePersonSettings(currentStaffId, patch);
-      toast("Settings saved","ok");
-    });
-
-    $("#autoToggle").addEventListener("change", ()=>{
-      const on = $("#autoToggle").checked;
-      $("#autoLabel").textContent = on ? "ON" : "OFF";
-      $("#autoLabel").className = "pill " + (on ? "ok" : "off");
-    });
-
-  }catch(e){
-    console.error(e);
-    toast(e.message || "Failed to load admin","bad");
-  }
-}
-
-async function loadPersonState(force=false){
+async function loadPersonState(){
   if(!currentStaffId){
     $("#itemsTbl tbody").innerHTML = `<tr><td colspan="8" class="muted">Select a person.</td></tr>`;
     return;
   }
-  try{
-    const ps = await ensurePersonSettings(currentStaffId);
+  const ps = await ensurePersonSettings(currentStaffId);
 
-    $("#autoToggle").checked = !!ps.automation_enabled;
-    $("#autoLabel").textContent = ps.automation_enabled ? "ON" : "OFF";
-    $("#autoLabel").className = "pill " + (ps.automation_enabled ? "ok" : "off");
+  $("#autoToggle").checked = !!ps.automation_enabled;
+  $("#autoLabel").textContent = ps.automation_enabled ? "ON" : "OFF";
+  $("#autoLabel").className = "pill " + (ps.automation_enabled ? "ok" : "off");
 
-    $("#ownerSel").value = ps.default_owner_staff_id || "";
-    $("#ownerTeamSel").value = ps.default_owner_team_id || "";
-    $("#horizonInp").value = (ps.default_horizon_days ?? "");
+  $("#ownerSel").value = ps.default_owner_staff_id || "";
+  $("#ownerTeamSel").value = ps.default_owner_team_id || "";
+  $("#horizonInp").value = (ps.default_horizon_days ?? "");
 
-    const rows = await loadAssignments(currentStaffId);
-    assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+  const rows = await loadAssignments(currentStaffId);
+  assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
 
-    renderItems();
-  }catch(e){
-    console.error(e);
-    toast(e.message || "Failed to load person data","bad");
-  }
+  renderItems();
 }
 
 function renderItems(){
@@ -472,10 +631,10 @@ function renderItems(){
         <tr data-cid="${c.id}">
           <td><input type="checkbox" class="useChk" ${checked?"checked":""}/></td>
           <td>
-            <div style="font-weight:700">${c.title}</div>
-            <div class="small">${c.category||""}</div>
+            <div style="font-weight:700">${esc(c.title)}</div>
+            <div class="small">${esc(c.category||"")}</div>
           </td>
-          <td><span class="pill">${mode}</span></td>
+          <td><span class="pill">${esc(mode)}</span></td>
           <td>
             <input type="date" class="input lastInp" value="${last||""}" ${checked?"":"disabled"} />
           </td>
@@ -505,10 +664,10 @@ function renderItems(){
     });
 
   tb.innerHTML = rows.join("") || `<tr><td colspan="8" class="muted">No items.</td></tr>`;
-  bindRowEvents();
+  bindPortfolioRowEvents();
 }
 
-function bindRowEvents(){
+function bindPortfolioRowEvents(){
   $all("#itemsTbl tbody tr").forEach(tr=>{
     const cid = tr.getAttribute("data-cid");
 
@@ -525,7 +684,6 @@ function bindRowEvents(){
         if(!currentStaffId) return;
         if(chk.checked){
           await upsertAssignment(currentStaffId, cid, true);
-          // add to assignMap by reloading person rows
           const rows = await loadAssignments(currentStaffId);
           assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
           toast("Assigned","ok");
@@ -544,31 +702,21 @@ function bindRowEvents(){
 
     lastInp.addEventListener("change", async ()=>{
       try{
-        if(!currentStaffId) return;
-        if(!chk.checked) return;
+        if(!currentStaffId || !chk.checked) return;
 
         const audit = assignMap.get(cid);
         const last = lastInp.value || null;
 
-        // compute next expiry for fixed cycles
         let next = null;
         if(audit){
           if(audit.cycle_mode==="fixed"){
-            const val = audit.cycle_value;
-            const unit = audit.cycle_unit;
-            next = last ? addInterval(last, val, unit) : null;
-          }else if(audit.cycle_mode==="one_time"){
-            next = null;
-          }else if(audit.cycle_mode==="manual"){
-            // manual expiry comes from expInp/manual_next_expiry_at, stored on assignment
-            next = null;
-          }else if(audit.cycle_mode==="tbc"){
+            next = last ? addInterval(last, audit.cycle_value, audit.cycle_unit) : null;
+          }else{
             next = null;
           }
         }
         await upsertRecord(currentStaffId, cid, last, next, null);
 
-        // refresh map
         const rows = await loadAssignments(currentStaffId);
         assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
         toast("Saved completion date","ok");
@@ -584,7 +732,7 @@ function bindRowEvents(){
         if(!currentStaffId || !chk.checked) return;
         const val = expInp.value || null;
         await setManualExpiry(currentStaffId, cid, val);
-        // Also store into records.next_expiry_at for consistency (helps audit)
+
         const audit = assignMap.get(cid);
         if(audit && (audit.cycle_mode==="manual" || audit.cycle_mode==="tbc")){
           await upsertRecord(currentStaffId, cid, audit.last_completed_at || null, val, null);
@@ -620,7 +768,7 @@ function bindRowEvents(){
         const v = ovVal.value ? Number(ovVal.value) : null;
         const u = ovUnit.value || null;
         await setOverrides(currentStaffId, cid, (hzInp.value?Number(hzInp.value):null), v, u);
-        // Recalc expiry if fixed override and last completed exists
+
         const audit = assignMap.get(cid);
         const last = tr.querySelector(".lastInp").value || null;
         if(last && v && u){
@@ -636,11 +784,362 @@ function bindRowEvents(){
         toast(e.message || "Failed to save overrides","bad");
       }
     });
-
   });
 }
 
-bootAdmin();
+// ===== Staff Manager =====
+let STAFF_ALL = [];
+let STAFF_HAS_ACTIVE = true;
+
+async function loadStaffAll(){
+  let res = await sb.schema("cck").from("staff_pool").select("id,display_name,active").order("display_name");
+  if(res.error && /column .*active/i.test(res.error.message||"")){
+    STAFF_HAS_ACTIVE = false;
+    res = await sb.schema("cck").from("staff_pool").select("id,display_name").order("display_name");
+  }
+  if(res.error) throw res.error;
+  return res.data || [];
+}
+
+function renderStaff(){
+  const tb = $("#staffTbl tbody");
+  const q = ($("#staffSearch").value||"").trim().toLowerCase();
+  const showInactive = $("#staffShowInactive").checked;
+
+  const rows = (STAFF_ALL||[])
+    .filter(s=>{
+      const active = ("active" in s) ? (s.active!==false) : true;
+      if(!showInactive && !active) return false;
+      if(q && !(s.display_name||"").toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+  tb.innerHTML = rows.map(s=>{
+    const active = ("active" in s) ? (s.active!==false) : true;
+    const pill = active ? `<span class="pill ok">Active</span>` : `<span class="pill off">Inactive</span>`;
+    const disableToggle = STAFF_HAS_ACTIVE ? "" : "disabled title=\"Run the staff_pool.active SQL patch to enable deactivation\"";
+
+    return `
+      <tr data-id="${s.id}">
+        <td><input class="input staffNameInp" value="${esc(s.display_name||"")}" /></td>
+        <td>${pill}</td>
+        <td class="small">${esc(s.id)}</td>
+        <td>
+          <div class="row" style="gap:.4rem;flex-wrap:wrap">
+            <button class="btn sm staffSaveBtn">Save</button>
+            <button class="btn sm ghost staffToggleBtn" ${disableToggle}>${active ? "Deactivate" : "Reactivate"}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="4" class="muted">No staff found.</td></tr>`;
+
+  bindStaffRowEvents();
+}
+
+function bindStaffRowEvents(){
+  $all("#staffTbl tbody tr").forEach(tr=>{
+    const id = tr.getAttribute("data-id");
+    const nameInp = tr.querySelector(".staffNameInp");
+    const saveBtn = tr.querySelector(".staffSaveBtn");
+    const togBtn  = tr.querySelector(".staffToggleBtn");
+
+    saveBtn.addEventListener("click", async ()=>{
+      try{
+        const name = (nameInp.value||"").trim();
+        if(!name) return toast("Name required","bad");
+        const res = await sb.schema("cck").from("staff_pool").update({ display_name: name }).eq("id", id);
+        if(res.error) throw res.error;
+        toast("Saved","ok");
+        await refreshStaff(false);
+        await refreshPortfolioReference();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Save failed","bad");
+      }
+    });
+
+    if(togBtn){
+      togBtn.addEventListener("click", async ()=>{
+        if(!STAFF_HAS_ACTIVE) return;
+        try{
+          const row = STAFF_ALL.find(x=>x.id===id);
+          const active = ("active" in row) ? (row.active!==false) : true;
+          const res = await sb.schema("cck").from("staff_pool").update({ active: !active }).eq("id", id);
+          if(res.error) throw res.error;
+          toast(active ? "Deactivated" : "Reactivated","ok");
+          await refreshStaff(false);
+          await refreshPortfolioReference();
+        }catch(e){
+          console.error(e);
+          toast(e.message||"Toggle failed","bad");
+        }
+      });
+    }
+  });
+}
+
+async function refreshStaff(showToast){
+  try{
+    STAFF_ALL = await loadStaffAll();
+    renderStaff();
+    if(showToast) toast("Staff refreshed","ok");
+  }catch(e){
+    console.error(e);
+    toast(e.message||"Failed to load staff","bad");
+  }
+}
+
+async function addStaff(){
+  const name = ($("#staffNewName").value||"").trim();
+  if(!name) return toast("Enter a name","bad");
+  try{
+    let payload = { display_name: name };
+    if(STAFF_HAS_ACTIVE) payload.active = true;
+    const res = await sb.schema("cck").from("staff_pool").insert(payload);
+    if(res.error) throw res.error;
+    $("#staffNewName").value="";
+    toast("Staff added","ok");
+    await refreshStaff(false);
+    await refreshPortfolioReference();
+  }catch(e){
+    console.error(e);
+    toast(e.message||"Add staff failed","bad");
+  }
+}
+
+// ===== Catalog Manager =====
+let CAT_ALL = [];
+
+async function loadCatalogAll(){
+  const res = await sb.schema("cck").from("compliance_catalog")
+    .select("id,title,category,cycle_mode,cycle_value,cycle_unit,default_horizon_days,active")
+    .order("title");
+  if(res.error) throw res.error;
+  return res.data || [];
+}
+
+function renderCatalog(){
+  const tb = $("#catTbl tbody");
+  const q = ($("#catSearch").value||"").trim().toLowerCase();
+  const showInactive = $("#catShowInactive").checked;
+
+  const rows = (CAT_ALL||[])
+    .filter(r=>{
+      const active = r.active!==false;
+      if(!showInactive && !active) return false;
+      if(q && !(r.title||"").toLowerCase().includes(q) && !(r.category||"").toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+  tb.innerHTML = rows.map(r=>{
+    const active = r.active!==false;
+    return `
+      <tr data-id="${r.id}">
+        <td><input class="input catTitle" value="${esc(r.title||"")}" /></td>
+        <td><input class="input catCategory" value="${esc(r.category||"")}" /></td>
+        <td>
+          <select class="input catMode">
+            ${["fixed","one_time","manual","tbc"].map(m=>`<option value="${m}" ${r.cycle_mode===m?"selected":""}>${m}</option>`).join("")}
+          </select>
+        </td>
+        <td><input class="input catVal" type="number" min="1" value="${r.cycle_value??""}" placeholder=""/></td>
+        <td>
+          <select class="input catUnit">
+            <option value="" ${!r.cycle_unit?"selected":""}>(none)</option>
+            ${["days","months","years"].map(u=>`<option value="${u}" ${r.cycle_unit===u?"selected":""}>${u}</option>`).join("")}
+          </select>
+        </td>
+        <td><input class="input catHz" type="number" min="1" value="${r.default_horizon_days??""}" placeholder="60"/></td>
+        <td>${active ? `<span class="pill ok">Yes</span>` : `<span class="pill off">No</span>`}</td>
+        <td>
+          <div class="row" style="gap:.4rem;flex-wrap:wrap">
+            <button class="btn sm catSaveBtn">Save</button>
+            <button class="btn sm ghost catToggleBtn">${active ? "Deactivate" : "Activate"}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="8" class="muted">No catalog items.</td></tr>`;
+
+  bindCatalogRowEvents();
+}
+
+function bindCatalogRowEvents(){
+  $all("#catTbl tbody tr").forEach(tr=>{
+    const id = tr.getAttribute("data-id");
+    const title = tr.querySelector(".catTitle");
+    const cat = tr.querySelector(".catCategory");
+    const mode = tr.querySelector(".catMode");
+    const val = tr.querySelector(".catVal");
+    const unit = tr.querySelector(".catUnit");
+    const hz = tr.querySelector(".catHz");
+    const save = tr.querySelector(".catSaveBtn");
+    const toggle = tr.querySelector(".catToggleBtn");
+
+    save.addEventListener("click", async ()=>{
+      try{
+        const payload = {
+          title: (title.value||"").trim(),
+          category: (cat.value||"").trim() || null,
+          cycle_mode: mode.value,
+          cycle_value: val.value ? Number(val.value) : null,
+          cycle_unit: unit.value || null,
+          default_horizon_days: hz.value ? Number(hz.value) : null
+        };
+        if(!payload.title) return toast("Title required","bad");
+
+        // basic sanity: fixed needs value+unit
+        if(payload.cycle_mode==="fixed" && (!payload.cycle_value || !payload.cycle_unit)){
+          return toast("Fixed needs value + unit","bad");
+        }
+        if(payload.cycle_mode!=="fixed"){
+          // keep DB tidy
+          payload.cycle_value = null;
+          payload.cycle_unit = null;
+        }
+
+        const res = await sb.schema("cck").from("compliance_catalog").update(payload).eq("id", id);
+        if(res.error) throw res.error;
+        toast("Saved","ok");
+        await refreshCatalog(false);
+        await refreshPortfolioReference();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Save failed","bad");
+      }
+    });
+
+    toggle.addEventListener("click", async ()=>{
+      try{
+        const row = CAT_ALL.find(x=>x.id===id);
+        const active = row.active!==false;
+        const res = await sb.schema("cck").from("compliance_catalog").update({ active: !active }).eq("id", id);
+        if(res.error) throw res.error;
+        toast(active ? "Deactivated" : "Activated","ok");
+        await refreshCatalog(false);
+        await refreshPortfolioReference();
+      }catch(e){
+        console.error(e);
+        toast(e.message||"Toggle failed","bad");
+      }
+    });
+  });
+}
+
+async function refreshCatalog(showToast){
+  try{
+    CAT_ALL = await loadCatalogAll();
+    renderCatalog();
+    if(showToast) toast("Catalog refreshed","ok");
+  }catch(e){
+    console.error(e);
+    toast(e.message||"Failed to load catalog","bad");
+  }
+}
+
+async function addCatalogItem(){
+  const title = ($("#catNewTitle").value||"").trim();
+  if(!title) return toast("Title required","bad");
+  const category = ($("#catNewCategory").value||"").trim() || null;
+  const mode = $("#catNewMode").value;
+  const val = $("#catNewVal").value ? Number($("#catNewVal").value) : null;
+  const unit = $("#catNewUnit").value || null;
+  const hz = $("#catNewHz").value ? Number($("#catNewHz").value) : null;
+
+  if(mode==="fixed" && (!val || !unit)) return toast("Fixed needs value + unit","bad");
+
+  const payload = {
+    title,
+    category,
+    cycle_mode: mode,
+    cycle_value: (mode==="fixed" ? val : null),
+    cycle_unit: (mode==="fixed" ? unit : null),
+    default_horizon_days: hz,
+    active: true
+  };
+
+  try{
+    const res = await sb.schema("cck").from("compliance_catalog").insert(payload);
+    if(res.error) throw res.error;
+
+    $("#catNewTitle").value="";
+    $("#catNewCategory").value="";
+    $("#catNewVal").value="";
+    $("#catNewUnit").value="";
+    $("#catNewHz").value="";
+
+    toast("Catalog item added","ok");
+    await refreshCatalog(false);
+    await refreshPortfolioReference();
+  }catch(e){
+    console.error(e);
+    toast(e.message||"Add item failed","bad");
+  }
+}
+
+// ===== Cross-refresh helpers =====
+async function refreshPortfolioReference(){
+  // Keep dropdowns in Portfolios current after staff/catalog edits.
+  const prevStaff = currentStaffId;
+  STAFF = await loadStaffActive();
+  CATALOG = await loadCatalogActive();
+
+  // Update person / owner dropdowns without nuking event handlers
+  const personSel = $("#personSel");
+  const ownerSel = $("#ownerSel");
+
+  if(personSel && ownerSel){
+    const prevPerson = personSel.value;
+    personSel.innerHTML=""; opt(personSel,"","Select person..."); STAFF.forEach(s=>opt(personSel, s.id, s.display_name));
+    ownerSel.innerHTML=""; opt(ownerSel,"","(None)"); STAFF.forEach(s=>opt(ownerSel, s.id, s.display_name));
+    // restore selection if still present
+    if(prevPerson && STAFF.some(s=>s.id===prevPerson)) personSel.value = prevPerson;
+    if(prevStaff && STAFF.some(s=>s.id===prevStaff)) currentStaffId = prevStaff;
+  }
+
+  // Re-render table if person loaded
+  if(currentStaffId){
+    const rows = await loadAssignments(currentStaffId);
+    assignMap = new Map(rows.map(r=>[r.catalog_id, r]));
+    renderItems();
+  }
+}
+
+// ===== Boot =====
+(async function boot(){
+  try{
+    bindTabs();
+    setTab("portfolios");
+
+    await bootPortfolios();
+
+    // Staff/Catalog binds
+    $("#staffRefreshBtn").addEventListener("click", ()=>refreshStaff(true));
+    $("#staffAddBtn").addEventListener("click", addStaff);
+    $("#staffSearch").addEventListener("input", renderStaff);
+    $("#staffShowInactive").addEventListener("change", renderStaff);
+
+    $("#catRefreshBtn").addEventListener("click", ()=>refreshCatalog(true));
+    $("#catAddBtn").addEventListener("click", addCatalogItem);
+    $("#catSearch").addEventListener("input", renderCatalog);
+    $("#catShowInactive").addEventListener("change", renderCatalog);
+    $("#catNewMode").addEventListener("change", ()=>{
+      const m = $("#catNewMode").value;
+      const needFixed = (m==="fixed");
+      $("#catNewVal").disabled = !needFixed;
+      $("#catNewUnit").disabled = !needFixed;
+    });
+    $("#catNewMode").dispatchEvent(new Event("change"));
+
+    // Prime but don't force load heavy tabs
+    STAFF_ALL = await loadStaffAll();
+    CAT_ALL = await loadCatalogAll();
+  }catch(e){
+    console.error(e);
+    toast(e.message || "Failed to boot admin","bad");
+  }
+})();
 
 </script>
 </body>
