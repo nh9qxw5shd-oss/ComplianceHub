@@ -9,6 +9,7 @@
 :root{
       --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
       --header:#111827; --headerText:#f9fafb; --border:#e5e7eb;
+      --line:var(--border);
       --shadow:0 6px 18px rgba(0,0,0,.08); --radius:14px;
       --btn:#111827; --btnText:#f9fafb; --btn2:#ffffff; --btn2Text:#111827;
       --focus:rgba(17,24,39,.15);
@@ -102,9 +103,6 @@ tr:hover td{background:rgba(17,24,39,.03)}
       <span class="statusText">Not connected</span>
       <span id="whoLabel" style="margin-left:.5rem" class="muted"></span>
     </div>
-          <button class="ghost sm" type="button" onclick="location.href='index.html'">
-    ← Back to Tasks
-  </button>
     <button class="btn" id="loginBtnTop">SNDM Login</button>
     <button class="btn ghost hide" id="logoutBtnTop">Logout</button>
     <button class="btn hide" id="createBtnTop">Create Task</button>
@@ -156,7 +154,7 @@ tr:hover td{background:rgba(17,24,39,.03)}
  * Paste your project URL + anon key here (single source of truth).
  */
 const SUPABASE_URL  = "https://ungtmfwxqawkdiflmora.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc;
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
@@ -246,7 +244,7 @@ async function ensurePersonSettings(staff_id) {
 async function loadAssignments(staff_id) {
   // Pull assignments + record dates using the audit view
   const { data, error } = await sb.schema("cck").from("v_compliance_audit")
-    .select("catalog_id,compliance_title,cycle_mode,cycle_value,cycle_unit,horizon_days,manual_next_expiry_at,last_completed_at,next_expiry_at,automation_enabled")
+    .select("catalog_id,compliance_title,category,cycle_mode,cycle_value,cycle_unit,horizon_days,manual_next_expiry_at,last_completed_at,next_expiry_at,automation_enabled")
     .eq("staff_id", staff_id)
     .order("compliance_title");
   if(error) throw error;
@@ -332,6 +330,11 @@ async function boot(){
   try{
     STAFF = await loadStaff();
     const sel = $("#personSel");
+    if(!sel){
+      console.error("Audit page miswired: #personSel not found");
+      toast("Audit page miswired: person selector missing (#personSel).","bad");
+      return;
+    }
     sel.innerHTML = "";
     opt(sel,"","Select person...");
     STAFF.forEach(s=>opt(sel, s.id, s.display_name));
@@ -527,7 +530,7 @@ function opt(el, value, label){
   el.appendChild(o);
 }
 
-boot();
+window.addEventListener("DOMContentLoaded", ()=> boot());
 
 </script>
 </body>
