@@ -95,11 +95,11 @@ header a.btn.ghost:hover {
     <span id="whoLabel" style="margin-left:.5rem" class="muted"></span>
   </div>
 
-  <a href="CCK_Compliance_Audit_v1.html" class="btn ghost sm">
+  <a href="CCK_Compliance_Audit_v1.html" class="btn ghost sm hide" id="auditLink">
     Compliance Audit
   </a>
 
-  <a href="CCK_Compliance_Admin_v1.html" class="btn ghost sm">
+  <a href="CCK_Compliance_Admin_v1.html" class="btn ghost sm hide" id="adminLink">
     Compliance Admin
   </a>
 
@@ -459,15 +459,15 @@ async function runComplianceMonitorAllEnabled(){
 
     if(!inHorizon) continue;
 
-    // Check map for open entry (avoid dupes)
+    // Check map for open entry (avoid dupes). NOTE: null expiry needs `.is()` not `.eq()`.
     const cycle_expiry_at = expiry || null;
-    const mapRes = await sb.schema("cck").from("compliance_task_map")
+    let mapQ = sb.schema("cck").from("compliance_task_map")
       .select("id")
       .eq("staff_id", r.staff_id)
       .eq("catalog_id", r.catalog_id)
-      .eq("cycle_expiry_at", cycle_expiry_at)
-      .eq("status", "open")
-      .limit(1);
+      .eq("status", "open");
+    mapQ = (cycle_expiry_at === null) ? mapQ.is("cycle_expiry_at", null) : mapQ.eq("cycle_expiry_at", cycle_expiry_at);
+    const mapRes = await mapQ.limit(1);
 
     if(mapRes.error) throw mapRes.error;
     if((mapRes.data||[]).length) continue;
@@ -617,7 +617,7 @@ Expiry date: ${expiryTxt}`;
 
       return `<tr data-id="${r.t.id}">
         <td>${pill}</td>
-        <td><div class="tTitle">${escapeHtml(r.t.title||"")}</div><div class="mini muted">${escapeHtml(r.t.description||"")}</div></td>
+        <td><div class="tTitle">${escapeHtml(r.t.title||"")}${r.t.task_type==="compliance" ? ` <span class="pill" title="Auto-generated compliance task"><span class="dot grey"></span><span class="mini">COMPLIANCE</span></span>` : ""}</div><div class="mini muted">${escapeHtml(r.t.description||"")}</div></td>
         <td>${escapeHtml(due)}</td>
         <td>${escapeHtml(target)}</td>
         <td>${owner}</td>
@@ -634,6 +634,14 @@ Expiry date: ${expiryTxt}`;
     $("#createBtnTop").classList.toggle("hide", !(authed && me.role==="sndm"));
     $("#logoutBtnTop").classList.toggle("hide", !authed);
     $("#loginBtnTop").classList.toggle("hide", authed);
+  
+
+    // Compliance pages: keep KISS - visible only for SNDM when logged in
+    const showComplianceLinks = (authed && me.role==="sndm");
+    const aL = document.getElementById("auditLink");
+    const adL = document.getElementById("adminLink");
+    if(aL) aL.classList.toggle("hide", !showComplianceLinks);
+    if(adL) adL.classList.toggle("hide", !showComplianceLinks);
   }
 
   function showAuthCard(show){ $("#authCard").classList.toggle("hide", !show); }
@@ -868,10 +876,10 @@ Expiry date: ${expiryTxt}`;
   if(!initSupabase()) return;
   setConn(true);
   bind();
-  await refreshAll(false);
 
-  // ✅ Hybrid compliance sweep: runs quietly on page load
-  runComplianceMonitorAllEnabled().catch(()=>{});
+  // ✅ Hybrid compliance sweep: run first, then refresh so new tasks appear immediately
+  await runComplianceMonitorAllEnabled().catch(()=>{});
+  await refreshAll(false);
 })();
 </script>
 
