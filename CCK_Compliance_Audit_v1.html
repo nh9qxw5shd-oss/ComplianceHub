@@ -98,6 +98,7 @@ tr:hover td{background:rgba(17,24,39,.03)}
   </div>
 
   <div class="row">
+    <button class="btn ghost" id="backBtnTop">Back to Tasks</button>
     <div id="whoAmI" class="who mini">
       <span class="dot grey"></span>
       <span class="statusText">Not connected</span>
@@ -157,8 +158,28 @@ const SUPABASE_URL  = "https://ungtmfwxqawkdiflmora.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 });
+
+function setConn(ok, msg=""){
+  const dot = document.querySelector("#whoAmI .dot");
+  const st  = document.querySelector("#whoAmI .statusText");
+  if(dot) dot.className = "dot " + (ok ? "green" : "grey");
+  if(st) st.textContent = ok ? ("Connected" + (msg?(" · "+msg):"")) : ("Not connected" + (msg?(" · "+msg):""));
+}
+
+async function pingConn(){
+  try{
+    // Tiny call purely to verify REST connectivity (no auth/session storage needed).
+    const res = await sb.schema("cck").from("staff_pool").select("id").limit(1);
+    if(res.error) throw res.error;
+    setConn(true);
+  }catch(e){
+    console.error(e);
+    setConn(false, e.message || "ping failed");
+  }
+}
+
 
 function $(q,root=document){ return root.querySelector(q); }
 function $all(q,root=document){ return Array.from(root.querySelectorAll(q)); }
@@ -472,14 +493,15 @@ async function runMonitorFor(staff_ids){
       // Dedupe: check map for open task for this staff+catalog+cycle_expiry_at
       const cycle_expiry_at = expiry || null;
 
-      const { data: existingMap, error: mErr } = await sb.schema("cck").from("compliance_task_map")
+      let mapQ = sb.schema("cck").from("compliance_task_map")
         .select("id,task_id,status")
         .eq("staff_id", r.staff_id)
         .eq("catalog_id", r.catalog_id)
-        .eq("cycle_expiry_at", cycle_expiry_at)
-        .eq("status", "open")
-        .limit(1);
-      if(mErr) throw mErr;
+        .eq("status", "open");
+      // cycle_expiry_at can be NULL for one_time / missing dates. PostgREST needs .is() for NULL.
+      mapQ = (cycle_expiry_at === null) ? mapQ.is("cycle_expiry_at", null) : mapQ.eq("cycle_expiry_at", cycle_expiry_at);
+      const { data: existingMap, error: mErr } = await mapQ.limit(1);
+if(mErr) throw mErr;
       if(existingMap && existingMap.length) continue;
 
       // Create task in existing tasks table
@@ -530,8 +552,11 @@ function opt(el, value, label){
   el.appendChild(o);
 }
 
-window.addEventListener("DOMContentLoaded", ()=> boot());
+window.addEventListener("DOMContentLoaded", async ()=>{ await pingConn(); await boot(); });
 
+// header actions
+const _back=document.querySelector("#backBtnTop");
+if(_back){ _back.addEventListener("click", ()=>{ window.location.href = "index.html"; }); }
 </script>
 </body>
 </html>
