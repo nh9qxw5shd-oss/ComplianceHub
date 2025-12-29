@@ -350,8 +350,28 @@ const SUPABASE_URL  = "https://ungtmfwxqawkdiflmora.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ3RtZnd4cWF3a2RpZmxtb3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMDY4NjQsImV4cCI6MjA3NzY4Mjg2NH0.Yaq0XfbbkwxJDUoiPCS7bLVBy70Wa-NOOWIxkpRRxdc";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 });
+
+function setConn(ok, msg=""){
+  const dot = document.querySelector("#whoAmI .dot");
+  const st  = document.querySelector("#whoAmI .statusText");
+  if(dot) dot.className = "dot " + (ok ? "green" : "grey");
+  if(st) st.textContent = ok ? ("Connected" + (msg?(" · "+msg):"")) : ("Not connected" + (msg?(" · "+msg):""));
+}
+
+async function pingConn(){
+  try{
+    // Tiny call purely to verify REST connectivity (no auth/session storage needed).
+    const res = await sb.schema("cck").from("staff_pool").select("id").limit(1);
+    if(res.error) throw res.error;
+    setConn(true);
+  }catch(e){
+    console.error(e);
+    setConn(false, e.message || "ping failed");
+  }
+}
+
 
 function $(q,root=document){ return root.querySelector(q); }
 function $all(q,root=document){ return Array.from(root.querySelectorAll(q)); }
