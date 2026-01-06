@@ -713,8 +713,17 @@ Expiry date: ${expiryTxt}`;
 
     $("#taskTbody").innerHTML = rows.map(r=>{
       const due = (r.t.task_type==="quarterly" && r.t.quarter) ? r.t.quarter : (r.t.due_at ? fmtDate(r.t.due_at) : "");
-      const target = r.t.target_team_id ? `Team: ${escapeHtml(nameForTeam(r.t.target_team_id))}`
-        : (r.t.target_staff_id ? `Staff: ${escapeHtml(nameForStaff(r.t.target_staff_id))}` : "All");
+      const teamName  = r.t.target_team_id  ? nameForTeam(r.t.target_team_id)  : "";
+const staffName = r.t.target_staff_id ? nameForStaff(r.t.target_staff_id) : "";
+
+let target = "All";
+if (teamName && staffName) {
+  target = `Team: ${escapeHtml(teamName)} • Staff: ${escapeHtml(staffName)}`;
+} else if (teamName) {
+  target = `Team: ${escapeHtml(teamName)}`;
+} else if (staffName) {
+  target = `Staff: ${escapeHtml(staffName)}`;
+}
       const owner = escapeHtml(nameForStaff(r.t.owner_staff_id)||"");
       const pill = `<span class="pill"><span class="dot ${r.rag}"></span><span>${r.rag.toUpperCase()}</span></span>`;
 
