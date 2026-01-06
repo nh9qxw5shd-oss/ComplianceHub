@@ -77,6 +77,11 @@ header a.btn.ghost {
 header a.btn.ghost:hover {
   background: rgba(255,255,255,0.08);
 }
+  
+    /* Progress bar */
+    .progressOuter{width:100%;height:12px;border-radius:999px;background:#e5e7eb;overflow:hidden;border:1px solid #d1d5db}
+    .progressInner{height:100%;width:0%;background:#111827}
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -145,6 +150,18 @@ header a.btn.ghost:hover {
         <span class="pill"><span class="dot amber"></span><span class="mini">Due soon</span> <b id="kpiAmber">0</b></span>
         <span class="pill"><span class="dot green"></span><span class="mini">OK</span> <b id="kpiGreen">0</b></span>
         <span class="pill"><span class="dot grey"></span><span class="mini">Open</span> <b id="kpiDue">0</b></span>
+      </div>
+
+
+      <div id="progressWrap" class="subtle" style="margin-top:.6rem">
+        <div class="row space" style="align-items:center">
+          <div class="mini muted">Progress</div>
+          <div class="mini"><b id="progPct">0%</b></div>
+        </div>
+        <div class="progressOuter" aria-label="Progress bar">
+          <div id="progBar" class="progressInner" style="width:0%"></div>
+        </div>
+        <div class="mini muted" id="progSub" style="margin-top:.35rem">Loading…</div>
       </div>
 
       <div class="hr"></div>
@@ -568,6 +585,7 @@ Expiry date: ${expiryTxt}`;
     $("#ct_targetTeam").innerHTML = `<option value="">None</option>` + cache.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
     $("#ct_targetStaff").innerHTML = `<option value="">None</option>` + cache.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join("");
     $("#ct_owner").innerHTML = `<option value="">None</option>` + cache.staff.map(s=>`<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join("");
+
   }
 
   function renderTaskKpis(rows){
@@ -577,6 +595,95 @@ Expiry date: ${expiryTxt}`;
     $("#kpiAmber").textContent = open.filter(r=>r.rag==="amber").length;
     $("#kpiGreen").textContent = open.filter(r=>r.rag==="green").length;
   }
+  // ===== Progress (Tasks + Compliance portfolios) =====
+  let _progressReq = 0;
+
+  function setProgress(pct, sub){
+    const pctEl = $("#progPct");
+    const barEl = $("#progBar");
+    const subEl = $("#progSub");
+    if(pctEl) pctEl.textContent = `${pct}%`;
+    if(barEl) barEl.style.width = `${pct}%`;
+    if(subEl) subEl.textContent = sub || "";
+  }
+
+  async function computePortfolioProgress(staffId){
+    // Portfolio progress = "currently compliant" items / total assigned items
+    // - one_time: compliant if last_completed_at exists
+    // - fixed/manual: compliant if expiry exists and today <= expiry
+    // - tbc/missing dates: not compliant
+    let q = sb.schema("cck").from("v_compliance_audit")
+      .select("staff_id,cycle_mode,last_completed_at,next_expiry_at,manual_next_expiry_at");
+
+    if(staffId) q = q.eq("staff_id", staffId);
+
+    const res = await q;
+    if(res.error) throw res.error;
+
+    const rows = res.data || [];
+    const now = new Date();
+    let total = 0, compliant = 0;
+
+    for(const r of rows){
+      total += 1;
+      const mode = (r.cycle_mode || "").toLowerCase();
+
+      if(mode === "one_time"){
+        if(r.last_completed_at) compliant += 1;
+        continue;
+      }
+      if(mode === "tbc"){
+        continue;
+      }
+      const exp = r.manual_next_expiry_at || r.next_expiry_at;
+      if(!exp) continue;
+
+      const expDt = new Date(exp + "T00:00:00Z");
+      if(!isNaN(expDt) && now <= expDt) compliant += 1;
+    }
+
+    return { total, compliant };
+  }
+
+  async function updateProgress(rows){
+    const req = ++_progressReq;
+
+    // Manual tasks: exclude compliance auto-generated tasks to avoid double counting portfolio.
+    const manual = rows.filter(r => (r.t.task_type || "").toLowerCase() !== "compliance");
+    const manualTotal = manual.length;
+    const manualDone  = manual.filter(r => r.complete).length;
+
+    // Portfolio scope: if a specific staff filter is selected, show that person's portfolio.
+    // If team filter is set without a staff filter, portfolio is excluded (teams don't map to portfolios).
+    const staffFilter = $("#filterStaff")?.value || "";
+    const teamFilter  = $("#filterTeam")?.value || "";
+
+    let portTotal = 0, portDone = 0;
+    try{
+      if(staffFilter){
+        const p = await computePortfolioProgress(staffFilter);
+        portTotal = p.total; portDone = p.compliant;
+      }else if(!teamFilter){
+        const p = await computePortfolioProgress(null);
+        portTotal = p.total; portDone = p.compliant;
+      }
+    }catch(e){
+      // Don't kill the UI if portfolios aren't configured yet
+      console.warn("Portfolio progress failed:", e);
+    }
+
+    if(req !== _progressReq) return; // stale
+
+    const total = portTotal + manualTotal;
+    const done  = portDone  + manualDone;
+    const pct   = total ? Math.round((done/total)*100) : 0;
+
+    const parts = [];
+    parts.push(`Compliance: ${portDone}/${portTotal}`);
+    parts.push(`Tasks: ${manualDone}/${manualTotal}`);
+    setProgress(pct, parts.join("  •  "));
+  }
+
 
   function renderTasks(){
     const ft=$("#filterTeam").value;
@@ -600,6 +707,9 @@ Expiry date: ${expiryTxt}`;
       });
 
     renderTaskKpis(rows);
+
+    // Update progress bar (tasks + portfolios)
+    updateProgress(rows);
 
     $("#taskTbody").innerHTML = rows.map(r=>{
       const due = (r.t.task_type==="quarterly" && r.t.quarter) ? r.t.quarter : (r.t.due_at ? fmtDate(r.t.due_at) : "");
